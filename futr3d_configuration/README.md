@@ -6,7 +6,8 @@
 
 ## 简介
 本文档介绍了futr3d项目在本地的部署方法，参考了网站
-https://zhuanlan.zhihu.com/p/671956617 的内容
+https://zhuanlan.zhihu.com/p/671956617 和
+https://blog.csdn.net/newbie_dqt/article/details/136740751的内容
 
 ## 环境配置
 FUTR环境配置<br>
@@ -104,7 +105,7 @@ python tools/train.py plugin/futr3d/configs/lidar_only/lidar_0075v_900q.py --gpu
 ```
 bash tools/dist_train.sh plugin/futr3d/configs/lidar_only/lidar_0075v_900q.py 8
 ```
-注意要改成0077v_900q.py
+注意，要把github的文件名改成lidar_0075v_900q.py
 如果出现字符串问题，可能是dist_train.sh文件里的字符由于windows/unix间换行符的问题，需要转换一下
 sudo apt install dos2unix
 dos2unix tools/dist_train.sh
@@ -113,3 +114,4 @@ dos2unix tools/dist_train.sh
 ```
 bash tools/dist_train.sh plugin/futr3d/configs/lidar_cam/lidar_0075v_cam_res101.py ../lidar_cam.pth 8 --eval bbox
 ```
+注意，要把github的文件名改成lidar_0075v_cam_res101.py
