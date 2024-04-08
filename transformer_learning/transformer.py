@@ -37,9 +37,26 @@ class MultiHeadAttention(nn.Module):
 
 class TokenEmbedding(nn.Embedding):
     def __init__(self,vocab_size,d_model):
-        super(TokenEmbedding,self).__init__()
+        super(TokenEmbedding,self).__init__(vocab_size,d_model,padding_idx=1)
+
+class PositionalEmbedding(nn.Module):
+    def __init__(self,d_model,maxlen,device):
+        super(PositionalEmbedding,self).__init__()
+        self.encoding=torch.zeros(maxlen,d_model,device=device)
+        self.encoding.requires_grad_(False)
+        pos=torch.arange(0,maxlen,device=device)
+        pos=pos.float().unsqueeze(1)
+        
+        
         
 def main():
+    re=torch.tensor([1,2,3,4,5,6])
+    result=re.view(3,-1,1)
+    print(result.shape)
+    print(result.squeeze(0).shape)
+    print(result.squeeze(1).shape)
+    
+    print(result.squeeze(2).shape)
     X=torch.randn(128,64,512)
     print(X.shape)
 
