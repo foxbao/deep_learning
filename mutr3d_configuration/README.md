@@ -15,9 +15,7 @@ https://blog.csdn.net/newbie_dqt/article/details/136740751的内容
 ```
 git clone https://github.com/a1600012888/MUTR3D.git
 ```
-
-
-FUTR3D需要安装的包的版本
+MUTR3D需要安装的包的版本
 FUTR3D README关于依赖的版本描述如下：
 
 1. mmcv==1.3.14
@@ -28,12 +26,19 @@ FUTR3D README关于依赖的版本描述如下：
 本文选用的各种依赖的版本为：
 
 具体配置流程如下：
+- 确认CUDA版本
+用nvcc -V 和nvidia-smi查看cuda版本，确保两个命令出来的版本一致，例如12.4。如果nvcc -V的版本与nvidia-smi不一致，更新CUDA
+```
+wget https://developer.download.nvidia.com/compute/cuda/12.4.0/local_installers/cuda_12.4.0_550.54.14_linux.run
+sudo sh cuda_12.4.0_550.54.14_linux.run
+```
+
 - 创建并进入环境
 ```
 conda create -n mutr3d python=3.8 -y
-conda activate futr3d
+conda activate mutr3d
 ```
-- 安装torch==1.13.0、cuda==11.6
+- 安装torch==1.13.0、cuda==12.4(cuda版本通过nvcc -V确定)
 ```
 conda install pytorch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 pytorch-cuda=12.4 -c pytorch -c nvidia
 ```
@@ -73,6 +78,9 @@ cp -r ../plugin ./
 cp -r ../tools ./ 
 # then install mmdetection3d following its instruction. 
 # and mmdetection3d becomes your new working directories. 
+```
+安装mmdetection3d
+```
 pip install -v -e .
 ```
 
@@ -81,23 +89,19 @@ pip install -v -e .
 使用nuscenes v1.0-mini数据集，下载并复制到本地文件夹下data/nuscenes文件夹下，解压缩
 ```
 wget https://d36yt3mvayqw5m.cloudfront.net/public/v1.0/v1.0-mini.tgz
-mkdir /home/baojiali/Downloads/public_code/futr3d/data/nuscenes
-cp v1.0-mini.tgz /home/baojiali/Downloads/public_code/futr3d/data/nuscenes
-cd /home/baojiali/Downloads/public_code/futr3d/data/nuscenes
+mkdir /home/baojiali/Downloads/public_code/MUTR3d/mmdetection3d/data/nuscenes
+cp v1.0-mini.tgz /home/baojiali/Downloads/public_code/MUTR3d/mmdetection3d/data/nuscenes
+cd /home/baojiali/Downloads/public_code/MUTR3d/mmdetection3d/data/nuscenes
 tar -xvzf v1.0-mini.tgz
 ```
 
-futr3d/data/nuscenes/
+MUTR3d/mmdetection3d/data/nuscenes/
 ├── LICENSE
 ├── maps
 ├── samples
 ├── sweeps
 ├── v1.0-mini
 └── v1.0-mini.tgz
-
-- 修改路径问题
-把mmdet3d和tools里的create_data.py和merge_infos.py
-总共四个文件中data/nusc_new/改成data/nuscenes/
 
 - 数据适配代码
 运行如下代码得到mmdet3d能够处理的形式
