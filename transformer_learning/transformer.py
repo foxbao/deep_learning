@@ -281,6 +281,7 @@ class Transformer(nn.Module):
         len_q, len_k = q.size(1), k.size(1)
 
         # (Batch, Time, len_q, len_k)
+        aaaa=q.ne(pad_idx_q)
         q = q.ne(pad_idx_q).unsqueeze(1).unsqueeze(3)
         q = q.repeat(1, 1, 1, len_k)
 
