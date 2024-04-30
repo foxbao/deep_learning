@@ -11,7 +11,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 import numpy as np
 from IPython.display import HTML
 from diffusion_utilities import *
-
+from torch.utils.tensorboard import SummaryWriter
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
         super(ContextUnet, self).__init__()
@@ -90,6 +90,7 @@ class ContextUnet(nn.Module):
         out = self.out(torch.cat((up3, x), 1))
         return out
     
+    
 # hyperparameters
 
 # diffusion hyperparameters
@@ -115,8 +116,16 @@ a_t = 1 - b_t
 ab_t = torch.cumsum(a_t.log(), dim=0).exp()    
 ab_t[0] = 1
 
+writer = SummaryWriter('runs')
 # construct model
 nn_model = ContextUnet(in_channels=3, n_feat=n_feat, n_cfeat=n_cfeat, height=height).to(device)
+
+transform_size=height
+transform = transforms.Compose([
+    transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
+    transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
+])
+
 
 # load dataset and construct optimizer
 dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
@@ -131,6 +140,7 @@ def perturb_input(x, t, noise):
 
 # set into train mode
 nn_model.train()
+
 
 for ep in range(n_epoch):
     print(f'epoch {ep}')
@@ -156,14 +166,15 @@ for ep in range(n_epoch):
         loss.backward()
         
         optim.step()
-
+    writer.add_scalar('Loss/train', loss.item(), ep)
+    print("loss:",loss.item())
     # save model periodically
     if ep%4==0 or ep == int(n_epoch-1):
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
         torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
         print('saved model at ' + save_dir + f"model_{ep}.pth")
-
+        
 # helper function; removes the predicted noise (but adds some noise back in to avoid collapse)
 def denoise_add_noise(x, t, pred_noise, z=None):
     if z is None:
@@ -197,38 +208,27 @@ def sample_ddpm(n_sample, save_rate=20):
     intermediate = np.stack(intermediate)
     return samples, intermediate
 
-# load in model weights and set to eval mode
-nn_model.load_state_dict(torch.load(f"{save_dir}/model_0.pth", map_location=device))
-nn_model.eval()
-print("Loaded in Model")
+# # load in model weights and set to eval mode
+# nn_model.load_state_dict(torch.load(f"{save_dir}/model_0.pth", map_location=device))
+# nn_model.eval()
+# print("Loaded in Model")
 
-# visualize samples
-plt.clf()
-samples, intermediate_ddpm = sample_ddpm(32)
-animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run0", None, save=True)
-HTML(animation_ddpm.to_jshtml())
+# # visualize samples
+# plt.clf()
+# samples, intermediate_ddpm = sample_ddpm(32)
+# animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run", None, save=False)
+# HTML(animation_ddpm.to_jshtml())
 
-# load in model weights and set to eval mode
-nn_model.load_state_dict(torch.load(f"{save_dir}/model_4.pth", map_location=device))
-nn_model.eval()
-print("Loaded in Model")
+# # load in model weights and set to eval mode
+# nn_model.load_state_dict(torch.load(f"{save_dir}/model_4.pth", map_location=device))
+# nn_model.eval()
+# print("Loaded in Model")
 
-# visualize samples
-plt.clf()
-samples, intermediate_ddpm = sample_ddpm(32)
-animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run4", None, save=True)
-HTML(animation_ddpm.to_jshtml())
-
-# load in model weights and set to eval mode
-nn_model.load_state_dict(torch.load(f"{save_dir}/model_8.pth", map_location=device))
-nn_model.eval()
-print("Loaded in Model")
-
-# visualize samples
-plt.clf()
-samples, intermediate_ddpm = sample_ddpm(32)
-animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run8", None, save=True)
-HTML(animation_ddpm.to_jshtml())
+# # visualize samples
+# plt.clf()
+# samples, intermediate_ddpm = sample_ddpm(32)
+# animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run", None, save=True)
+# HTML(animation_ddpm.to_jshtml())
 
 # load in model weights and set to eval mode
 nn_model.load_state_dict(torch.load(f"{save_dir}/model_31.pth", map_location=device))
@@ -238,5 +238,6 @@ print("Loaded in Model")
 # visualize samples
 plt.clf()
 samples, intermediate_ddpm = sample_ddpm(32)
-animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run31", None, save=True)
+animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run", None, save=True)
 HTML(animation_ddpm.to_jshtml())
+

@@ -287,16 +287,14 @@ class CustomDataset2(Dataset):
         # Return the image and label as a tuple
         if self.transform:
             image = self.transform(Image.open(os.path.join(self.img_dir, self.img_names[idx])))
-            # plt.imshow(image)
+            # image = torch.unsqueeze(image, dim=0)  # 在第0维增加一个维度，变成[B, C, H, W]
+            # image = image.repeat(3, 1, 1)  # 在通道维度上复制三次，变成[B, 3, H, W]
+            # image = self.transform(self.sprites[idx])
             if self.null_context:
                 label = torch.tensor(0).to(torch.int64)
             else:
                 label = torch.tensor(self.slabels[idx]).to(torch.int64)
         return (image,label)
-
-    def getshapes(self):
-        # return shapes of data and labels
-        return self.sprites_shape, self.slabel_shape
         
 class CustomDataset(Dataset):
     def __init__(self, sfilename, lfilename, transform, null_context=False):
@@ -328,8 +326,9 @@ class CustomDataset(Dataset):
         # return shapes of data and labels
         return self.sprites_shape, self.slabel_shape
 
-
+transform_size=256
 transform = transforms.Compose([
     transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
     transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
+    transforms.Resize([transform_size,transform_size])
 ])

@@ -11,7 +11,8 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 import numpy as np
 from IPython.display import HTML
 from diffusion_utilities import *
-from torch.utils.tensorboard import SummaryWriter
+
+
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
         super(ContextUnet, self).__init__()
@@ -27,20 +28,21 @@ class ContextUnet(nn.Module):
 
         # Initialize the down-sampling path of the U-Net with two levels
         self.down1 = UnetDown(n_feat, n_feat)        # down1 #[10, 256, 8, 8]
-        self.down2 = UnetDown(n_feat, 2 * n_feat)    # down2 #[10, 256, 4,  4]
-        
+        self.down2 = UnetDown(n_feat, 2 * n_feat)    # 
          # original: self.to_vec = nn.Sequential(nn.AvgPool2d(7), nn.GELU())
         self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
 
         # Embed the timestep and context labels with a one-layer fully connected neural network
         self.timeembed1 = EmbedFC(1, 2*n_feat)
         self.timeembed2 = EmbedFC(1, 1*n_feat)
+        
         self.contextembed1 = EmbedFC(n_cfeat, 2*n_feat)
         self.contextembed2 = EmbedFC(n_cfeat, 1*n_feat)
 
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
-            nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample 
+            # nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample 
+            nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, 4, 4), # up-sample 
             nn.GroupNorm(8, 2 * n_feat), # normalize                        
             nn.ReLU(),
         )
@@ -68,10 +70,8 @@ class ContextUnet(nn.Module):
         # pass the result through the down-sampling path
         down1 = self.down1(x)       #[10, 256, 8, 8]
         down2 = self.down2(down1)   #[10, 256, 4, 4]
-        
         # convert the feature maps to a vector and apply an activation
         hiddenvec = self.to_vec(down2)
-        
         # mask out context if context_mask == 1
         if c is None:
             c = torch.zeros(x.shape[0], self.n_cfeat).to(x)
@@ -89,8 +89,7 @@ class ContextUnet(nn.Module):
         up3 = self.up2(cemb2*up2 + temb2, down1)
         out = self.out(torch.cat((up3, x), 1))
         return out
-    
-    
+
 # hyperparameters
 
 # diffusion hyperparameters
@@ -102,13 +101,17 @@ beta2 = 0.02
 device = torch.device("cuda:0" if torch.cuda.is_available() else torch.device('cpu'))
 n_feat = 64 # 64 hidden dimension feature
 n_cfeat = 5 # context vector is of size 5
-height = 16 # 16x16 image
+height =16 # 16x16 image
+height =32 # 16x16 image
+in_channels=1
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 100
-n_epoch = 1024
+batch_size = 50
+n_epoch = 200
 lrate=1e-3
+
+
 
 # construct DDPM noise schedule
 b_t = (beta2 - beta1) * torch.linspace(0, 1, timesteps + 1, device=device) + beta1
@@ -117,19 +120,14 @@ ab_t = torch.cumsum(a_t.log(), dim=0).exp()
 ab_t[0] = 1
 
 # construct model
-nn_model = ContextUnet(in_channels=3, n_feat=n_feat, n_cfeat=n_cfeat, height=height).to(device)
+nn_model = ContextUnet(in_channels=in_channels, n_feat=n_feat, n_cfeat=n_cfeat, height=height).to(device)
 
-transform_size=height
-transform = transforms.Compose([
-    transforms.Resize([transform_size,transform_size]),
-    transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
-    transforms.Normalize((0.5,), (0.5,))  # range [-1,1]
-])
-
+# # load dataset and construct optimizer
+# dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt",transform, null_context=True)
+dataset = CustomDataset2("data/parking_data", "data/parking_data/data.txt",transform, null_context=True)
 
 # load dataset and construct optimizer
 # dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
-dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
 optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
@@ -143,7 +141,6 @@ def perturb_input(x, t, noise):
 # set into train mode
 nn_model.train()
 
-writer = SummaryWriter('runs')
 for ep in range(n_epoch):
     print(f'epoch {ep}')
     
@@ -151,6 +148,7 @@ for ep in range(n_epoch):
     optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
     
     pbar = tqdm(dataloader, mininterval=2 )
+
     for x, _ in pbar:   # x: images
         optim.zero_grad()
         x = x.to(device)
@@ -168,7 +166,7 @@ for ep in range(n_epoch):
         loss.backward()
         
         optim.step()
-    writer.add_scalar('Loss/train', loss.item(), ep)
+        
     # save model periodically
     if ep%4==0 or ep == int(n_epoch-1):
         if not os.path.exists(save_dir):
@@ -188,7 +186,7 @@ def denoise_add_noise(x, t, pred_noise, z=None):
 @torch.no_grad()
 def sample_ddpm(n_sample, save_rate=20):
     # x_T ~ N(0, 1), sample initial noise
-    samples = torch.randn(n_sample, 3, height, height).to(device)  
+    samples = torch.randn(n_sample, in_channels, height, height).to(device)  
 
     # array to keep track of generated steps for plotting
     intermediate = [] 
@@ -217,6 +215,7 @@ print("Loaded in Model")
 # visualize samples
 plt.clf()
 samples, intermediate_ddpm = sample_ddpm(32)
+
+
 animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run"+str(n_epoch-1), None, save=True)
 HTML(animation_ddpm.to_jshtml())
-

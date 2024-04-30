@@ -11,7 +11,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 import numpy as np
 from IPython.display import HTML
 from diffusion_utilities import *
-from torch.utils.tensorboard import SummaryWriter
+
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
         super(ContextUnet, self).__init__()
@@ -40,8 +40,8 @@ class ContextUnet(nn.Module):
 
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
-            nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample 
-            nn.GroupNorm(8, 2 * n_feat), # normalize                        
+            nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), 
+            nn.GroupNorm(8, 2 * n_feat), # normalize                       
             nn.ReLU(),
         )
         self.up1 = UnetUp(4 * n_feat, n_feat)
@@ -90,7 +90,6 @@ class ContextUnet(nn.Module):
         out = self.out(torch.cat((up3, x), 1))
         return out
     
-    
 # hyperparameters
 
 # diffusion hyperparameters
@@ -107,7 +106,7 @@ save_dir = './weights/'
 
 # training hyperparameters
 batch_size = 100
-n_epoch = 1024
+n_epoch = 32
 lrate=1e-3
 
 # construct DDPM noise schedule
@@ -119,104 +118,51 @@ ab_t[0] = 1
 # construct model
 nn_model = ContextUnet(in_channels=3, n_feat=n_feat, n_cfeat=n_cfeat, height=height).to(device)
 
-transform_size=height
-transform = transforms.Compose([
-    transforms.Resize([transform_size,transform_size]),
-    transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
-    transforms.Normalize((0.5,), (0.5,))  # range [-1,1]
-])
-
-
-# load dataset and construct optimizer
-# dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
-dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
-
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
-
-# helper function: perturbs an image to a specified noise level
-def perturb_input(x, t, noise):
-    return ab_t.sqrt()[t, None, None, None] * x + (1 - ab_t[t, None, None, None]) * noise
-
-# training without context code
-
-# set into train mode
-nn_model.train()
-
-writer = SummaryWriter('runs')
-for ep in range(n_epoch):
-    print(f'epoch {ep}')
+# define sampling function for DDIM   
+# removes the noise using ddim
+def denoise_ddim(x, t, t_prev, pred_noise):
+    ab = ab_t[t]
+    ab_prev = ab_t[t_prev]
     
-    # linearly decay learning rate
-    optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
-    
-    pbar = tqdm(dataloader, mininterval=2 )
-    for x, _ in pbar:   # x: images
-        optim.zero_grad()
-        x = x.to(device)
-        
-        # perturb data
-        noise = torch.randn_like(x)
-        t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device) 
-        x_pert = perturb_input(x, t, noise)
-        
-        # use network to recover noise
-        pred_noise = nn_model(x_pert, t / timesteps)
-        
-        # loss is mean squared error between the predicted and true noise
-        loss = F.mse_loss(pred_noise, noise)
-        loss.backward()
-        
-        optim.step()
-    writer.add_scalar('Loss/train', loss.item(), ep)
-    # save model periodically
-    if ep%4==0 or ep == int(n_epoch-1):
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
-        print('saved model at ' + save_dir + f"model_{ep}.pth")
-        
-# helper function; removes the predicted noise (but adds some noise back in to avoid collapse)
-def denoise_add_noise(x, t, pred_noise, z=None):
-    if z is None:
-        z = torch.randn_like(x)
-    noise = b_t.sqrt()[t] * z
-    mean = (x - pred_noise * ((1 - a_t[t]) / (1 - ab_t[t]).sqrt())) / a_t[t].sqrt()
-    return mean + noise
+    x0_pred = ab_prev.sqrt() / ab.sqrt() * (x - (1 - ab).sqrt() * pred_noise)
+    dir_xt = (1 - ab_prev).sqrt() * pred_noise
 
-# sample using standard algorithm
+    return x0_pred + dir_xt
+
+# load in model weights and set to eval mode
+nn_model.load_state_dict(torch.load(f"{save_dir}/model_31.pth", map_location=device))
+nn_model.eval() 
+print("Loaded in Model without context")
+
+# sample quickly using DDIM
 @torch.no_grad()
-def sample_ddpm(n_sample, save_rate=20):
+def sample_ddim(n_sample, n=20):
     # x_T ~ N(0, 1), sample initial noise
     samples = torch.randn(n_sample, 3, height, height).to(device)  
 
     # array to keep track of generated steps for plotting
     intermediate = [] 
-    for i in range(timesteps, 0, -1):
+    step_size = timesteps // n
+    for i in range(timesteps, 0, -step_size):
         print(f'sampling timestep {i:3d}', end='\r')
 
         # reshape time tensor
         t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
 
-        # sample some random noise to inject back in. For i = 1, don't add back in noise
-        z = torch.randn_like(samples) if i > 1 else 0
-
         eps = nn_model(samples, t)    # predict noise e_(x_t,t)
-        samples = denoise_add_noise(samples, i, eps, z)
-        if i % save_rate ==0 or i==timesteps or i<8:
-            intermediate.append(samples.detach().cpu().numpy())
+        samples = denoise_ddim(samples, i, i - step_size, eps)
+        intermediate.append(samples.detach().cpu().numpy())
 
     intermediate = np.stack(intermediate)
     return samples, intermediate
 
-# load in model weights and set to eval mode
-nn_model.load_state_dict(torch.load(f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
-nn_model.eval()
-print("Loaded in Model")
-
 # visualize samples
 plt.clf()
-samples, intermediate_ddpm = sample_ddpm(32)
-animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run"+str(n_epoch-1), None, save=True)
-HTML(animation_ddpm.to_jshtml())
+samples, intermediate = sample_ddim(32, n=25)
+animation_ddim = plot_sample(intermediate,32,4,save_dir, "ani_run", None, save=False)
+HTML(animation_ddim.to_jshtml())
 
+# load in model weights and set to eval mode
+nn_model.load_state_dict(torch.load(f"{save_dir}/context_model_31.pth", map_location=device))
+nn_model.eval() 
+print("Loaded in Context Model")
