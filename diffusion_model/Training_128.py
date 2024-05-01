@@ -144,11 +144,11 @@ n_cfeat = 5  # context vector is of size 5
 # height = 16  # 16x16 image
 # height = 256  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
 height = 128  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
-in_channels = 3
+in_channels = 3 # dont forget to modify cmap='gray'
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 30
+batch_size = 10
 n_epoch = 2000
 lrate = 1e-3
 
@@ -196,38 +196,38 @@ def perturb_input(x, t, noise):
 # set into train mode
 nn_model.train()
 
-for ep in range(n_epoch):
-    print(f'epoch {ep}')
+# for ep in range(n_epoch):
+#     print(f'epoch {ep}')
 
-    # linearly decay learning rate
-    optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
+#     # linearly decay learning rate
+#     optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
 
-    pbar = tqdm(dataloader, mininterval=2)
+#     pbar = tqdm(dataloader, mininterval=2)
 
-    for x, _ in pbar:   # x: images
-        optim.zero_grad()
-        x = x.to(device)
+#     for x, _ in pbar:   # x: images
+#         optim.zero_grad()
+#         x = x.to(device)
 
-        # perturb data
-        noise = torch.randn_like(x)
-        t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
-        x_pert = perturb_input(x, t, noise)
+#         # perturb data
+#         noise = torch.randn_like(x)
+#         t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
+#         x_pert = perturb_input(x, t, noise)
 
-        # use network to recover noise
-        pred_noise = nn_model(x_pert, t / timesteps)
+#         # use network to recover noise
+#         pred_noise = nn_model(x_pert, t / timesteps)
 
-        # loss is mean squared error between the predicted and true noise
-        loss = F.mse_loss(pred_noise, noise)
-        loss.backward()
-        optim.step()
-    writer.add_scalar('Loss/train', loss.item(), ep)
-    print("loss:",loss.item())
-    # save model periodically
-    if ep % 10 == 0 or ep == int(n_epoch-1):
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
-        print('saved model at ' + save_dir + f"model_{ep}.pth")
+#         # loss is mean squared error between the predicted and true noise
+#         loss = F.mse_loss(pred_noise, noise)
+#         loss.backward()
+#         optim.step()
+#     writer.add_scalar('Loss/train', loss.item(), ep)
+#     print("loss:",loss.item())
+#     # save model periodically
+#     if ep % 10 == 0 or ep == int(n_epoch-1):
+#         if not os.path.exists(save_dir):
+#             os.mkdir(save_dir)
+#         torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
+#         print('saved model at ' + save_dir + f"model_{ep}.pth")
 
 # helper function; removes the predicted noise (but adds some noise back in to avoid collapse)
 
@@ -270,7 +270,7 @@ def sample_ddpm(n_sample, save_rate=20):
 
 # load in model weights and set to eval mode
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
+    f"{save_dir}/model_{1200}.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 

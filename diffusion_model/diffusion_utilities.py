@@ -116,29 +116,29 @@ class UnetDown(nn.Module):
         # Pass the input through the sequential model and return the output
         return self.model(x)
 
-class EmbedImage(nn.Module):
-    def __init__(self, in_channels, emb_dim):
-        super(EmbedFC, self).__init__()
-        '''
-        This class defines a generic one layer feed-forward neural network for embedding input data of
-        dimensionality input_dim to an embedding space of dimensionality emb_dim.
-        '''
-        # self.input_dim = input_dim
+# class EmbedImage(nn.Module):
+#     def __init__(self, in_channels, emb_dim):
+#         super(EmbedFC, self).__init__()
+#         '''
+#         This class defines a generic one layer feed-forward neural network for embedding input data of
+#         dimensionality input_dim to an embedding space of dimensionality emb_dim.
+#         '''
+#         # self.input_dim = input_dim
         
-        # define the layers for the network
-        layers = [
-            ResidualConvBlock(in_channels, emb_dim),
-            nn.AdaptiveAvgPool2d((1, 1)),
-        ]
+#         # define the layers for the network
+#         layers = [
+#             ResidualConvBlock(in_channels, emb_dim),
+#             nn.AdaptiveAvgPool2d((1, 1)),
+#         ]
         
-        # create a PyTorch sequential model consisting of the defined layers
-        self.model = nn.Sequential(*layers)
+#         # create a PyTorch sequential model consisting of the defined layers
+#         self.model = nn.Sequential(*layers)
 
-    def forward(self, x):
-        # flatten the input tensor
-        x = x.view(-1, self.input_dim)
-        # apply the model layers to the flattened tensor
-        return self.model(x)
+#     def forward(self, x):
+#         # flatten the input tensor
+#         x = x.view(-1, self.input_dim)
+#         # apply the model layers to the flattened tensor
+#         return self.model(x)
 
 class EmbedFC(nn.Module):
     def __init__(self, input_dim, emb_dim):
@@ -239,15 +239,17 @@ def plot_sample(x_gen_store,n_sample,nrows,save_dir, fn,  w, save=False):
     return ani        
 
 class CustomDataset3(Dataset):
-    def __init__(self,img_dir,img_names ,transform,null_context=False) -> None:
+    def __init__(self,img_dir,img_names,layout_dir,layout_names,transform,null_context=False) -> None:
         super().__init__()
         self.img_dir =img_dir 
         df = pd.read_csv(img_names, header=None,delimiter='\t', names=["Filename"])
         self.img_names= df["Filename"].values
-        # self.sfilename=sfilename
+        
+        self.layout_dir=layout_dir
+        df2 = pd.read_csv(layout_names, header=None,delimiter='\t', names=["Filename"])
+        self.layout_names=df2["Filename"].values
         self.transform=transform
         self.null_context = null_context
-        
         
     # Return the number of images in the dataset
     def __len__(self):
@@ -258,14 +260,16 @@ class CustomDataset3(Dataset):
         # Return the image and label as a tuple
         if self.transform:
             image = self.transform(Image.open(os.path.join(self.img_dir, self.img_names[idx])))
-            # image = torch.unsqueeze(image, dim=0)  # 在第0维增加一个维度，变成[B, C, H, W]
-            # image = image.repeat(3, 1, 1)  # 在通道维度上复制三次，变成[B, 3, H, W]
-            # image = self.transform(self.sprites[idx])
+            # plt.imshow(image)
             if self.null_context:
-                label = torch.tensor(0).to(torch.int64)
+                layout=torch.tensor(0).to(torch.int64)
             else:
-                label = torch.tensor(self.slabels[idx]).to(torch.int64)
-        return (image,label)
+                layout = self.transform(Image.open(os.path.join(self.layout_dir, self.layout_names[idx])))
+        return (image,layout)
+
+    def getshapes(self):
+        # return shapes of data and labels
+        return self.sprites_shape, self.slabel_shape
 
 class CustomDataset2(Dataset):
     def __init__(self,img_dir,img_names ,transform,null_context=False) -> None:
@@ -288,6 +292,7 @@ class CustomDataset2(Dataset):
         if self.transform:
             image = self.transform(Image.open(os.path.join(self.img_dir, self.img_names[idx])))
             # plt.imshow(image)
+            # plt.savefig(image,"lalal.jpg")
             if self.null_context:
                 label = torch.tensor(0).to(torch.int64)
             else:

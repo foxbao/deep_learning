@@ -52,6 +52,7 @@ class ContextUnet(nn.Module):
         # self.contextembed5 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed6 = EmbedFC(n_cfeat, 1*n_feat)
 
+        # self.imgembed1=EmbedImage(n_cfeat,n_feat)
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
             # nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample
@@ -146,8 +147,8 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 100
-n_epoch = 2000
+batch_size = 10
+n_epoch = 1000
 lrate = 1e-3
 
 
@@ -172,6 +173,7 @@ transform = transforms.Compose([
 
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
+# dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt","data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
 # dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
