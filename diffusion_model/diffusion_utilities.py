@@ -116,29 +116,29 @@ class UnetDown(nn.Module):
         # Pass the input through the sequential model and return the output
         return self.model(x)
 
-# class EmbedImage(nn.Module):
-#     def __init__(self, in_channels, emb_dim):
-#         super(EmbedFC, self).__init__()
-#         '''
-#         This class defines a generic one layer feed-forward neural network for embedding input data of
-#         dimensionality input_dim to an embedding space of dimensionality emb_dim.
-#         '''
-#         # self.input_dim = input_dim
+class EmbedImage(nn.Module):
+    def __init__(self, in_channels, emb_dim):
+        super(EmbedImage, self).__init__()
+        '''
+        This class defines a generic one layer feed-forward neural network for embedding input data of
+        dimensionality input_dim to an embedding space of dimensionality emb_dim.
+        '''
+        # self.input_dim = input_dim
         
-#         # define the layers for the network
-#         layers = [
-#             ResidualConvBlock(in_channels, emb_dim),
-#             nn.AdaptiveAvgPool2d((1, 1)),
-#         ]
+        # define the layers for the network
+        layers = [
+            ResidualConvBlock(in_channels, emb_dim),
+            nn.AdaptiveAvgPool2d((1, 1)),
+        ]
         
-#         # create a PyTorch sequential model consisting of the defined layers
-#         self.model = nn.Sequential(*layers)
+        # create a PyTorch sequential model consisting of the defined layers
+        self.model = nn.Sequential(*layers)
 
-#     def forward(self, x):
-#         # flatten the input tensor
-#         x = x.view(-1, self.input_dim)
-#         # apply the model layers to the flattened tensor
-#         return self.model(x)
+    def forward(self, x):
+        # flatten the input tensor
+        # x = x.view(-1, self.input_dim)
+        # apply the model layers to the flattened tensor
+        return self.model(x)
 
 class EmbedFC(nn.Module):
     def __init__(self, input_dim, emb_dim):

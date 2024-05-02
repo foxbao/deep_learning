@@ -26,6 +26,8 @@ class ContextUnet(nn.Module):
 
         # Initialize the initial convolutional layer
         self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
+        
+        self.init_conv_layout = ResidualConvBlock(in_channels, n_feat, is_res=True)
 
         # Initialize the down-sampling path of the U-Net with two levels
         
@@ -52,7 +54,12 @@ class ContextUnet(nn.Module):
         # self.contextembed5 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed6 = EmbedFC(n_cfeat, 1*n_feat)
 
-        # self.imgembed1=EmbedImage(n_cfeat,n_feat)
+        self.imgembed1=EmbedImage(n_feat,8*n_feat)
+        self.imgembed2=EmbedImage(n_feat,4*n_feat)
+        self.imgembed3=EmbedImage(n_feat,2*n_feat)
+        self.imgembed4=EmbedImage(n_feat,1*n_feat)
+        
+        
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
             # nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample
@@ -77,11 +84,12 @@ class ContextUnet(nn.Module):
             nn.Conv2d(n_feat, self.in_channels, 3, 1, 1),
         )
 
-    def forward(self, x, t, c=None):
+    def forward(self, x, t, c=None,layout=None):
         """
         x : (batch, n_feat, h, w) : input image
         t : (batch, n_cfeat)      : time step
         c : (batch, n_classes)    : context label
+        layout:(batch,n_feat,h,w)
         """
         # x is the input image, c is the context label, t is the timestep, context_mask says which samples to block the context on
 
@@ -111,17 +119,19 @@ class ContextUnet(nn.Module):
         temb3 = self.timeembed3(t).view(-1, self.n_feat*2, 1, 1)
         cemb4 = self.contextembed4(c).view(-1, self.n_feat, 1, 1)
         temb4 = self.timeembed4(t).view(-1, self.n_feat, 1, 1)
-        # cemb5 = self.contextembed5(c).view(-1, self.n_feat, 1, 1)
-        # temb5 = self.timeembed5(t).view(-1, self.n_feat, 1, 1)
-        # cemb6 = self.contextembed6(c).view(-1, self.n_feat, 1, 1)
-        # temb6 = self.timeembed6(t).view(-1, self.n_feat, 1, 1)
-        # print(f"uunet forward: cemb1 {cemb1.shape}. temb1 {temb1.shape}, cemb2 {cemb2.shape}. temb2 {temb2.shape}")
         
+        layout=self.init_conv_layout(layout)
+        iemb1=self.imgembed1(layout).view(-1, self.n_feat * 8, 1, 1)
+        iemb2=self.imgembed2(layout).view(-1, self.n_feat * 4, 1, 1)
+        iemb3=self.imgembed3(layout).view(-1, self.n_feat * 2, 1, 1)
+        iemb4=self.imgembed4(layout).view(-1, self.n_feat * 1, 1, 1)
+        
+
         up1 = self.up0(hiddenvec)
-        up2 = self.up1(cemb1*up1 + temb1, down4)  # add and multiply embeddings
-        up3 = self.up2(cemb2*up2 + temb2, down3)
-        up4 = self.up3(cemb3*up3 + temb3, down2)
-        up5 = self.up4(cemb4*up4 + temb4, down1)
+        up2 = self.up1(iemb1*up1 + temb1, down4)  # add and multiply embeddings
+        up3 = self.up2(iemb2*up2 + temb2, down3)
+        up4 = self.up3(iemb3*up3 + temb3, down2)
+        up5 = self.up4(iemb4*up4 + temb4, down1)
         # up6 = self.up5(cemb5*up5 + temb5, down1)
         # up7 = self.up6(cemb6*up6 + temb6, down1)
         out = self.out(torch.cat((up5, x), 1))
@@ -173,15 +183,15 @@ transform = transforms.Compose([
 
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
-# dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt","data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
-dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
+dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt","data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=False)
+# dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
 # dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
 # load dataset and construct optimizer
 # dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
-
-dataloader = DataLoader(dataset, batch_size=batch_size,
-                        shuffle=True, num_workers=1)
+val_dataset=CustomDataset3("data/val_parking_generate_data", "data/val_parking_generate_data/data.txt","data/val_parking_layout_data", "data/val_parking_layout_data/data.txt",transform, null_context=False)
+dataloader = DataLoader(dataset, batch_size=batch_size,shuffle=True, num_workers=1)
+dataloader_val = DataLoader(val_dataset, batch_size=batch_size,shuffle=False, num_workers=1)
 optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
 # helper function: perturbs an image to a specified noise level
@@ -204,9 +214,11 @@ for ep in range(n_epoch):
 
     pbar = tqdm(dataloader, mininterval=2)
 
-    for x, _ in pbar:   # x: images
+    for x, layout in pbar:   # x: images
         optim.zero_grad()
         x = x.to(device)
+        
+        layout = layout.to(device)
 
         # perturb data
         noise = torch.randn_like(x)
@@ -214,7 +226,7 @@ for ep in range(n_epoch):
         x_pert = perturb_input(x, t, noise)
 
         # use network to recover noise
-        pred_noise = nn_model(x_pert, t / timesteps)
+        pred_noise = nn_model(x_pert, t / timesteps,c=None,layout=layout)
 
         # loss is mean squared error between the predicted and true noise
         loss = F.mse_loss(pred_noise, noise)
@@ -242,6 +254,31 @@ def denoise_add_noise(x, t, pred_noise, z=None):
 
 # sample using standard algorithm
 
+# sample with context using standard algorithm
+@torch.no_grad()
+def sample_ddpm_context(n_sample, layout, save_rate=20):
+    # x_T ~ N(0, 1), sample initial noise
+    samples = torch.randn(n_sample, 3, height, height).to(device)  
+
+    # array to keep track of generated steps for plotting
+    intermediate = [] 
+    for i in range(timesteps, 0, -1):
+        print(f'sampling timestep {i:3d}', end='\r')
+
+        # reshape time tensor
+        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
+
+        # sample some random noise to inject back in. For i = 1, don't add back in noise
+        z = torch.randn_like(samples) if i > 1 else 0
+
+        eps = nn_model(samples, t, c=None,layout=layout)    # predict noise e_(x_t,t, ctx)
+        samples = denoise_add_noise(samples, i, eps, z)
+        if i % save_rate==0 or i==timesteps or i<8:
+            intermediate.append(samples.detach().cpu().numpy())
+
+    intermediate = np.stack(intermediate)
+    return samples, intermediate
+
 
 @torch.no_grad()
 def sample_ddpm(n_sample, save_rate=20):
@@ -268,11 +305,44 @@ def sample_ddpm(n_sample, save_rate=20):
     return samples, intermediate
 
 
+def show_images(imgs, nrow=2):
+    _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(4,2 ))
+    axs = axs.flatten()
+    for img, ax in zip(imgs, axs):
+        img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.imshow(img)
+    plt.show()
+
+# def show_layouts_generates(imgs, nrow=2):
+#     _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(4,2 ))
+#     axs = axs.flatten()
+#     for img, ax in zip(imgs, axs):
+#         img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+#         ax.set_xticks([])
+#         ax.set_yticks([])
+#         ax.imshow(img)
+#     plt.show()
+
+
 # load in model weights and set to eval mode
 nn_model.load_state_dict(torch.load(
     f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
+
+for x,layout in dataloader_val:
+    x = x.to(device)
+    layout = layout.to(device)
+    samples, intermediate = sample_ddpm_context(layout.shape[0], layout)
+    show_images(layout)
+    show_images(samples)
+    # animation_ddpm_context = plot_sample(intermediate,32,4,save_dir, "ani_run", None, save=True)
+    # aaaaa=1
+
+layout_sample=0
+dataset.__getitem__[0]
 
 # visualize samples
 plt.clf()

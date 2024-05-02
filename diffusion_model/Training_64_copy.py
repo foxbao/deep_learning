@@ -52,7 +52,6 @@ class ContextUnet(nn.Module):
         # self.contextembed5 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed6 = EmbedFC(n_cfeat, 1*n_feat)
 
-        # self.imgembed1=EmbedImage(n_cfeat,n_feat)
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
             # nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample
@@ -116,7 +115,7 @@ class ContextUnet(nn.Module):
         # cemb6 = self.contextembed6(c).view(-1, self.n_feat, 1, 1)
         # temb6 = self.timeembed6(t).view(-1, self.n_feat, 1, 1)
         # print(f"uunet forward: cemb1 {cemb1.shape}. temb1 {temb1.shape}, cemb2 {cemb2.shape}. temb2 {temb2.shape}")
-        
+
         up1 = self.up0(hiddenvec)
         up2 = self.up1(cemb1*up1 + temb1, down4)  # add and multiply embeddings
         up3 = self.up2(cemb2*up2 + temb2, down3)
@@ -147,8 +146,8 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 10
-n_epoch = 1000
+batch_size = 1
+n_epoch = 2000
 lrate = 1e-3
 
 
@@ -173,7 +172,6 @@ transform = transforms.Compose([
 
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
-# dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt","data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
 # dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
