@@ -236,7 +236,40 @@ def plot_sample(x_gen_store,n_sample,nrows,save_dir, fn,  w, save=False):
     if save:
         ani.save(save_dir + f"{fn}_w{w}.gif", dpi=100, writer=PillowWriter(fps=5))
         print('saved gif at ' + save_dir + f"{fn}_w{w}.gif")
-    return ani        
+    return ani
+       
+def save_images(imgs,nrow=2,name="test.jpg"):
+    _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(4,2 ))
+    axs = axs.flatten()
+    for img, ax in zip(imgs, axs):
+        img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.imshow(img)
+    plt.savefig(name)
+    plt.close()
+
+def save_layout_sample_gt(layouts,samples,gts,name="result.jpg"):
+    _, axs = plt.subplots(3, layouts.shape[0],figsize=(4,2 ))
+    for i in range(layouts.shape[0]):
+        layout=(layouts[i].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        sample=(samples[i].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        gt=(gts[i].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        axs[0][i].imshow(layout)
+        axs[1][i].imshow(sample)
+        axs[2][i].imshow(gt)
+    plt.savefig(name)
+    plt.close()
+
+def show_images(imgs, nrow=2):
+    _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(8,2 ))
+    axs = axs.flatten()
+    for img, ax in zip(imgs, axs):
+        img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.imshow(img)
+    plt.show() 
 
 class CustomDataset3(Dataset):
     def __init__(self,img_dir,img_names,layout_dir,layout_names,transform,null_context=False) -> None:

@@ -13,6 +13,7 @@ from IPython.display import HTML
 from diffusion_utilities import *
 from torch.utils.tensorboard import SummaryWriter
 
+
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
         super(ContextUnet, self).__init__()
@@ -47,10 +48,10 @@ class ContextUnet(nn.Module):
         # self.timeembed5 = EmbedFC(1, 1*n_feat)
         # self.timeembed6 = EmbedFC(1, 1*n_feat)
         
-        self.contextembed1 = EmbedFC(n_cfeat, 8*n_feat)
-        self.contextembed2 = EmbedFC(n_cfeat, 4*n_feat)
-        self.contextembed3 = EmbedFC(n_cfeat, 2*n_feat)
-        self.contextembed4 = EmbedFC(n_cfeat, 1*n_feat)
+        # self.contextembed1 = EmbedFC(n_cfeat, 8*n_feat)
+        # self.contextembed2 = EmbedFC(n_cfeat, 4*n_feat)
+        # self.contextembed3 = EmbedFC(n_cfeat, 2*n_feat)
+        # self.contextembed4 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed5 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed6 = EmbedFC(n_cfeat, 1*n_feat)
 
@@ -111,13 +112,13 @@ class ContextUnet(nn.Module):
 
         # embed context and timestep
         # (batch, 2*n_feat, 1,1)
-        cemb1 = self.contextembed1(c).view(-1, self.n_feat * 8, 1, 1)
+        # cemb1 = self.contextembed1(c).view(-1, self.n_feat * 8, 1, 1)
         temb1 = self.timeembed1(t).view(-1, self.n_feat * 8, 1, 1)
-        cemb2 = self.contextembed2(c).view(-1, self.n_feat * 4 , 1, 1)
+        # cemb2 = self.contextembed2(c).view(-1, self.n_feat * 4 , 1, 1)
         temb2 = self.timeembed2(t).view(-1, self.n_feat *4, 1, 1)
-        cemb3 = self.contextembed3(c).view(-1, self.n_feat*2, 1, 1)
+        # cemb3 = self.contextembed3(c).view(-1, self.n_feat*2, 1, 1)
         temb3 = self.timeembed3(t).view(-1, self.n_feat*2, 1, 1)
-        cemb4 = self.contextembed4(c).view(-1, self.n_feat, 1, 1)
+        # cemb4 = self.contextembed4(c).view(-1, self.n_feat, 1, 1)
         temb4 = self.timeembed4(t).view(-1, self.n_feat, 1, 1)
         
         layout=self.init_conv_layout(layout)
@@ -157,7 +158,7 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 10
+batch_size = 40
 n_epoch = 1000
 lrate = 1e-3
 
@@ -183,15 +184,16 @@ transform = transforms.Compose([
 
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
-dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt","data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=False)
+dataset = CustomDataset3("/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data", "data/parking_generate_data/data.txt","/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=False)
 # dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
 # dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
 # load dataset and construct optimizer
 # dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
-val_dataset=CustomDataset3("data/val_parking_generate_data", "data/val_parking_generate_data/data.txt","data/val_parking_layout_data", "data/val_parking_layout_data/data.txt",transform, null_context=False)
+val_dataset=CustomDataset3("/home/baojiali/Downloads/parking2023/baojiali/park_generate/val_parking_generate_data", "data/val_parking_generate_data/data.txt","/home/baojiali/Downloads/parking2023/baojiali/park_generate/val_parking_layout_data", "data/val_parking_layout_data/data.txt",transform, null_context=False)
 dataloader = DataLoader(dataset, batch_size=batch_size,shuffle=True, num_workers=1)
-dataloader_val = DataLoader(val_dataset, batch_size=batch_size,shuffle=False, num_workers=1)
+val_batch_size=16
+dataloader_val = DataLoader(val_dataset, batch_size=val_batch_size,shuffle=False, num_workers=1)
 optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
 # helper function: perturbs an image to a specified noise level
@@ -201,8 +203,6 @@ def perturb_input(x, t, noise):
     return ab_t.sqrt()[t, None, None, None] * x + (1 - ab_t[t, None, None, None]) * noise
 
 # training without context code
-
-
 # set into train mode
 nn_model.train()
 
@@ -305,27 +305,6 @@ def sample_ddpm(n_sample, save_rate=20):
     return samples, intermediate
 
 
-def show_images(imgs, nrow=2):
-    _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(4,2 ))
-    axs = axs.flatten()
-    for img, ax in zip(imgs, axs):
-        img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.imshow(img)
-    plt.show()
-
-# def show_layouts_generates(imgs, nrow=2):
-#     _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(4,2 ))
-#     axs = axs.flatten()
-#     for img, ax in zip(imgs, axs):
-#         img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
-#         ax.set_xticks([])
-#         ax.set_yticks([])
-#         ax.imshow(img)
-#     plt.show()
-
-
 # load in model weights and set to eval mode
 nn_model.load_state_dict(torch.load(
     f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
@@ -342,7 +321,6 @@ for x,layout in dataloader_val:
     # aaaaa=1
 
 layout_sample=0
-dataset.__getitem__[0]
 
 # visualize samples
 plt.clf()
