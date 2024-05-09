@@ -12,6 +12,7 @@ import numpy as np
 from IPython.display import HTML
 from diffusion_utilities import *
 from torch.utils.tensorboard import SummaryWriter
+from utils import *
 
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
@@ -27,16 +28,17 @@ class ContextUnet(nn.Module):
         # Initialize the initial convolutional layer
         self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
 
-        self.init_conv_layout = ResidualConvBlock(in_channels, n_feat, is_res=True)
+        self.init_conv_layout = ResidualConvBlock(
+            in_channels, n_feat, is_res=True)
         # Initialize the down-sampling path of the U-Net with two levels
-        
+
         # self.down1 = UnetDown(n_feat, n_feat)
-        
+
         self.down1 = UnetDown(n_feat, n_feat)
-        self.down2 = UnetDown(n_feat, 2* n_feat)
-        self.down3 = UnetDown(2* n_feat, 4 * n_feat)        # 
-        self.down4 = UnetDown(4* n_feat, 8 * n_feat)
-        self.down5 = UnetDown(8* n_feat, 16 * n_feat)
+        self.down2 = UnetDown(n_feat, 2 * n_feat)
+        self.down3 = UnetDown(2 * n_feat, 4 * n_feat)        #
+        self.down4 = UnetDown(4 * n_feat, 8 * n_feat)
+        self.down5 = UnetDown(8 * n_feat, 16 * n_feat)
         self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
 
         # Embed the timestep and context labels with a one-layer fully connected neural network
@@ -46,7 +48,7 @@ class ContextUnet(nn.Module):
         self.timeembed4 = EmbedFC(1, 2*n_feat)
         self.timeembed5 = EmbedFC(1, 1*n_feat)
         # self.timeembed6 = EmbedFC(1, 1*n_feat)
-        
+
         self.contextembed1 = EmbedFC(n_cfeat, 16*n_feat)
         self.contextembed2 = EmbedFC(n_cfeat, 8*n_feat)
         self.contextembed3 = EmbedFC(n_cfeat, 4*n_feat)
@@ -54,12 +56,12 @@ class ContextUnet(nn.Module):
         self.contextembed5 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed6 = EmbedFC(n_cfeat, 1*n_feat)
 
-        self.imgembed1=EmbedImage(n_feat,16*n_feat)
-        self.imgembed2=EmbedImage(n_feat,8*n_feat)
-        self.imgembed3=EmbedImage(n_feat,4*n_feat)
-        self.imgembed4=EmbedImage(n_feat,2*n_feat)
-        self.imgembed5=EmbedImage(n_feat,1*n_feat)
-        
+        self.imgembed1 = EmbedImage(n_feat, 16*n_feat)
+        self.imgembed2 = EmbedImage(n_feat, 8*n_feat)
+        self.imgembed3 = EmbedImage(n_feat, 4*n_feat)
+        self.imgembed4 = EmbedImage(n_feat, 2*n_feat)
+        self.imgembed5 = EmbedImage(n_feat, 1*n_feat)
+
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
             # nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample
@@ -84,7 +86,7 @@ class ContextUnet(nn.Module):
             nn.Conv2d(n_feat, self.in_channels, 3, 1, 1),
         )
 
-    def forward(self, x, t, c=None,layout=None):
+    def forward(self, x, t, c=None, layout=None):
         """
         x : (batch, n_feat, h, w) : input image
         t : (batch, n_cfeat)      : time step
@@ -95,8 +97,7 @@ class ContextUnet(nn.Module):
 
         # pass the input image through the initial convolutional layer
         x = self.init_conv(x)
-        
-        
+
         # pass the result through the down-sampling path
         down1 = self.down1(x)  # [10, 256, 8, 8]
         down2 = self.down2(down1)  # [10, 256, 8, 8]
@@ -117,7 +118,7 @@ class ContextUnet(nn.Module):
         # cemb1 = self.contextembed1(c).view(-1, self.n_feat * 16, 1, 1)
         temb1 = self.timeembed1(t).view(-1, self.n_feat * 16, 1, 1)
         # cemb2 = self.contextembed2(c).view(-1, self.n_feat * 8 , 1, 1)
-        temb2 = self.timeembed2(t).view(-1, self.n_feat *8, 1, 1)
+        temb2 = self.timeembed2(t).view(-1, self.n_feat * 8, 1, 1)
         # cemb3 = self.contextembed3(c).view(-1, self.n_feat*4, 1, 1)
         temb3 = self.timeembed3(t).view(-1, self.n_feat*4, 1, 1)
         # cemb4 = self.contextembed4(c).view(-1, self.n_feat*2, 1, 1)
@@ -127,13 +128,12 @@ class ContextUnet(nn.Module):
         # cemb6 = self.contextembed6(c).view(-1, self.n_feat, 1, 1)
         # temb6 = self.timeembed6(t).view(-1, self.n_feat, 1, 1)
         # print(f"uunet forward: cemb1 {cemb1.shape}. temb1 {temb1.shape}, cemb2 {cemb2.shape}. temb2 {temb2.shape}")
-        layout=self.init_conv_layout(layout)
-        iemb1=self.imgembed1(layout).view(-1, self.n_feat * 16, 1, 1)
-        iemb2=self.imgembed2(layout).view(-1, self.n_feat * 8, 1, 1)
-        iemb3=self.imgembed3(layout).view(-1, self.n_feat * 4, 1, 1)
-        iemb4=self.imgembed4(layout).view(-1, self.n_feat * 2, 1, 1)
-        iemb5=self.imgembed5(layout).view(-1, self.n_feat * 1, 1, 1)
-        
+        layout = self.init_conv_layout(layout)
+        iemb1 = self.imgembed1(layout).view(-1, self.n_feat * 16, 1, 1)
+        iemb2 = self.imgembed2(layout).view(-1, self.n_feat * 8, 1, 1)
+        iemb3 = self.imgembed3(layout).view(-1, self.n_feat * 4, 1, 1)
+        iemb4 = self.imgembed4(layout).view(-1, self.n_feat * 2, 1, 1)
+        iemb5 = self.imgembed5(layout).view(-1, self.n_feat * 1, 1, 1)
 
         up1 = self.up0(hiddenvec)
         up2 = self.up1(iemb1*up1 + temb1, down5)  # add and multiply embeddings
@@ -161,7 +161,7 @@ n_cfeat = 5  # context vector is of size 5
 # height = 16  # 16x16 image
 # height = 256  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
 height = 128  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
-in_channels = 3 # dont forget to modify cmap='gray'
+in_channels = 3  # dont forget to modify cmap='gray'
 save_dir = './weights/'
 
 # training hyperparameters
@@ -182,9 +182,9 @@ writer = SummaryWriter('runs')
 nn_model = ContextUnet(in_channels=in_channels, n_feat=n_feat,
                        n_cfeat=n_cfeat, height=height).to(device)
 
-transform_size=height
+transform_size = height
 transform = transforms.Compose([
-    transforms.Resize([transform_size,transform_size]),
+    transforms.Resize([transform_size, transform_size]),
     transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
     transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
 ])
@@ -192,15 +192,35 @@ transform = transforms.Compose([
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
 # dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
-dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt","data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=False)
+# dataset = CustomDataset3("data/parking_generate_data", "data/parking_generate_data/data.txt",
+#                          "data/parking_layout_data", "data/parking_layout_data/data.txt", transform, null_context=False)
+dataset = CustomDataset3(
+    img_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data",
+    img_names="data/parking_generate_data/data.txt",
+    layout_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_layout_data",
+    layout_names="data/parking_layout_data/data.txt",
+    transform=transform,
+    null_context=False,
+)
 # dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
 # load dataset and construct optimizer
 # dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
-val_dataset=CustomDataset3("data/val_parking_generate_data", "data/val_parking_generate_data/data.txt","data/val_parking_layout_data", "data/val_parking_layout_data/data.txt",transform, null_context=False)
+# val_dataset = CustomDataset3("data/val_parking_generate_data", "data/val_parking_generate_data/data.txt",
+#                              "data/val_parking_layout_data", "data/val_parking_layout_data/data.txt", transform, null_context=False)
+val_dataset = CustomDataset3(
+    img_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data",
+    img_names="data/val_parking_generate_data/data.txt",
+    layout_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_layout_data",
+    layout_names="data/val_parking_layout_data/data.txt",
+    transform=transform,
+    null_context=False,
+)
 dataloader = DataLoader(dataset, batch_size=batch_size,
                         shuffle=True, num_workers=1)
-dataloader_val = DataLoader(val_dataset, batch_size=batch_size,shuffle=False, num_workers=1)
+val_batch_size = 4
+dataloader_val = DataLoader(
+    val_dataset, batch_size=val_batch_size, shuffle=False, num_workers=1)
 optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
 # helper function: perturbs an image to a specified noise level
@@ -217,39 +237,42 @@ nn_model.load_state_dict(torch.load(
     f"{save_dir}/model_670_128_context.pth", map_location=device))
 nn_model.train()
 
+model_parameters = get_parameter_number(nn_model)
+is_training = True
+if is_training:
 
-for ep in range(n_epoch):
-    print(f'epoch {ep}')
+    for ep in range(n_epoch):
+        print(f'epoch {ep}')
 
-    # linearly decay learning rate
-    optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
+        # linearly decay learning rate
+        optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
 
-    pbar = tqdm(dataloader, mininterval=2)
+        pbar = tqdm(dataloader, mininterval=2)
 
-    for x, layout in pbar:   # x: images
-        optim.zero_grad()
-        x = x.to(device)
-        layout = layout.to(device)
-        # perturb data
-        noise = torch.randn_like(x)
-        t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
-        x_pert = perturb_input(x, t, noise)
+        for x, layout in pbar:   # x: images
+            optim.zero_grad()
+            x = x.to(device)
+            layout = layout.to(device)
+            # perturb data
+            noise = torch.randn_like(x)
+            t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
+            x_pert = perturb_input(x, t, noise)
 
-        # use network to recover noise
-        pred_noise = nn_model(x_pert, t / timesteps,c=None,layout=layout)
+            # use network to recover noise
+            pred_noise = nn_model(x_pert, t / timesteps, c=None, layout=layout)
 
-        # loss is mean squared error between the predicted and true noise
-        loss = F.mse_loss(pred_noise, noise)
-        loss.backward()
-        optim.step()
-    writer.add_scalar('Loss/train', loss.item(), ep)
-    print("loss:",loss.item())
-    # save model periodically
-    if ep % 10 == 0 or ep == int(n_epoch-1):
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
-        print('saved model at ' + save_dir + f"model_{ep}.pth")
+            # loss is mean squared error between the predicted and true noise
+            loss = F.mse_loss(pred_noise, noise)
+            loss.backward()
+            optim.step()
+        writer.add_scalar('Loss/train', loss.item(), ep)
+        print("loss:", loss.item())
+        # save model periodically
+        if ep % 10 == 0 or ep == int(n_epoch-1):
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
+            print('saved model at ' + save_dir + f"model_{ep}.pth")
 
 # helper function; removes the predicted noise (but adds some noise back in to avoid collapse)
 
@@ -262,13 +285,14 @@ def denoise_add_noise(x, t, pred_noise, z=None):
             (1 - ab_t[t]).sqrt())) / a_t[t].sqrt()
     return mean + noise
 
+
 @torch.no_grad()
 def sample_ddpm_context(n_sample, layout, save_rate=20):
     # x_T ~ N(0, 1), sample initial noise
-    samples = torch.randn(n_sample, 3, height, height).to(device)  
+    samples = torch.randn(n_sample, 3, height, height).to(device)
 
     # array to keep track of generated steps for plotting
-    intermediate = [] 
+    intermediate = []
     for i in range(timesteps, 0, -1):
         print(f'sampling timestep {i:3d}', end='\r')
 
@@ -278,9 +302,10 @@ def sample_ddpm_context(n_sample, layout, save_rate=20):
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
 
-        eps = nn_model(samples, t, c=None,layout=layout)    # predict noise e_(x_t,t, ctx)
+        # predict noise e_(x_t,t, ctx)
+        eps = nn_model(samples, t, c=None, layout=layout)
         samples = denoise_add_noise(samples, i, eps, z)
-        if i % save_rate==0 or i==timesteps or i<8:
+        if i % save_rate == 0 or i == timesteps or i < 8:
             intermediate.append(samples.detach().cpu().numpy())
 
     intermediate = np.stack(intermediate)
@@ -316,18 +341,26 @@ def sample_ddpm(n_sample, save_rate=20):
 
 # load in model weights and set to eval mode
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/model_{680}.pth", map_location=device))
+    f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 
-
-for x,layout in dataloader_val:
-    x = x.to(device)
+for idx, (gt, layout) in enumerate(dataloader_val):
+    gt = gt.to(device)
     layout = layout.to(device)
     samples, intermediate = sample_ddpm_context(layout.shape[0], layout)
-    show_images(layout)
-    show_images(samples)
-    aaa=1
+    # show_images(layout)
+    # show_images(samples)
+    save_layout_sample_gt(
+        layouts=layout, samples=samples, gts=gt, name=str(idx) + "_triple.jpg"
+    )
+# for x, layout in dataloader_val:
+#     x = x.to(device)
+#     layout = layout.to(device)
+#     samples, intermediate = sample_ddpm_context(layout.shape[0], layout)
+#     show_images(layout)
+#     show_images(samples)
+#     aaa = 1
 # visualize samples
 plt.clf()
 samples, intermediate_ddpm = sample_ddpm(32)

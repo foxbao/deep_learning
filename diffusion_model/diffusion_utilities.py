@@ -251,13 +251,20 @@ def save_images(imgs,nrow=2,name="test.jpg"):
 
 def save_layout_sample_gt(layouts,samples,gts,name="result.jpg"):
     _, axs = plt.subplots(3, layouts.shape[0],figsize=(4,2 ))
-    for i in range(layouts.shape[0]):
-        layout=(layouts[i].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
-        sample=(samples[i].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
-        gt=(gts[i].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
-        axs[0][i].imshow(layout)
-        axs[1][i].imshow(sample)
-        axs[2][i].imshow(gt)
+    axs[0][0].text(-0.6, 0.5, 'layout', ha='center', va='center', transform=axs[0, 0].transAxes)
+    axs[1][0].text(-0.6, 0.5, 'sample', ha='center', va='center', transform=axs[1, 0].transAxes)
+    axs[2][0].text(-0.6, 0.5, 'gt', ha='center', va='center', transform=axs[2, 0].transAxes)
+
+    for j in range(layouts.shape[0]):
+        layout=(layouts[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        sample=(samples[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        gt=(gts[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        for idx in range(3):
+            axs[idx][j].set_xticks([])
+            axs[idx][j].set_yticks([])
+        axs[0][j].imshow(layout)
+        axs[1][j].imshow(sample)
+        axs[2][j].imshow(gt)
     plt.savefig(name)
     plt.close()
 
@@ -371,3 +378,32 @@ transform = transforms.Compose([
     transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
     transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
 ])
+
+
+# training without context code
+def validate(dataloader_val, nn_model):
+    nn_model.eval()  # 设置为评估模式 # OK
+    val_loss = [] # OK
+    with torch.no_grad():  # 不追踪梯度
+        correct = 0  #OK
+        total = 0   #OK
+
+        # aaa=dataloader_val
+        # for x, layout in dataloader_val: # not ok
+        #     pass
+        #     x = x.to(device)
+        #     layout = layout.to(device)
+        #     # perturb data
+        #     noise = torch.randn_like(x)
+        #     t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
+        #     x_pert = perturb_input(x, t, noise) # not OK
+
+        #     # use network to recover noise
+        #     pred_noise = nn_model(x_pert, t / timesteps, c=None, layout=layout)
+
+        #     # loss is mean squared error between the predicted and true noise
+        #     loss = F.mse_loss(pred_noise, noise)
+        #     val_loss.append(loss.item())
+        # avg_loss=np.mean(val_loss)
+        # writer.add_scalar("Loss/val", avg_loss, ep)
+        # print("val loss:", avg_loss)
