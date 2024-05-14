@@ -278,6 +278,39 @@ def show_images(imgs, nrow=2):
         ax.imshow(img)
     plt.show() 
 
+class CustomDatasetVal(Dataset):
+    def __init__(self,img_dir,img_names,layout_dir,layout_names,transform,null_context=False) -> None:
+        super().__init__()
+        self.img_dir =img_dir 
+        df = pd.read_csv(img_names, header=None,delimiter='\t', names=["Filename"])
+        self.img_names= df["Filename"].values
+        
+        self.layout_dir=layout_dir
+        df2 = pd.read_csv(layout_names, header=None,delimiter='\t', names=["Filename"])
+        self.layout_names=df2["Filename"].values
+        self.transform=transform
+        self.null_context = null_context
+        
+    # Return the number of images in the dataset
+    def __len__(self):
+        return len(self.img_names)
+    
+    # Get the image and label at a given index
+    def __getitem__(self, idx):
+        # Return the image and label as a tuple
+        if self.transform:
+            image = self.transform(Image.open(os.path.join(self.img_dir, self.img_names[idx])))
+            # plt.imshow(image)
+            if self.null_context:
+                layout=torch.tensor(0).to(torch.int64)
+            else:
+                layout = self.transform(Image.open(os.path.join(self.layout_dir, self.layout_names[idx])))
+        return (image,layout)
+
+    def getshapes(self):
+        # return shapes of data and labels
+        return self.sprites_shape, self.slabel_shape
+
 class CustomDataset3(Dataset):
     def __init__(self,img_dir,img_names,layout_dir,layout_names,transform,null_context=False) -> None:
         super().__init__()
@@ -380,30 +413,31 @@ transform = transforms.Compose([
 ])
 
 
-# training without context code
-def validate(dataloader_val, nn_model):
-    nn_model.eval()  # 设置为评估模式 # OK
-    val_loss = [] # OK
-    with torch.no_grad():  # 不追踪梯度
-        correct = 0  #OK
-        total = 0   #OK
+# # training without context code
+# def validate(dataloader_val, nn_model):
+#     pass # not ok
+#     # nn_model.eval()  # 设置为评估模式 # OK
+#     # val_loss = [] # OK
+#     # with torch.no_grad():  # 不追踪梯度
+#     #     correct = 0  #OK
+#     #     total = 0   #OK
 
-        # aaa=dataloader_val
-        # for x, layout in dataloader_val: # not ok
-        #     pass
-        #     x = x.to(device)
-        #     layout = layout.to(device)
-        #     # perturb data
-        #     noise = torch.randn_like(x)
-        #     t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
-        #     x_pert = perturb_input(x, t, noise) # not OK
+#         # aaa=dataloader_val
+#         # for x, layout in dataloader_val: # not ok
+#         #     pass
+#         #     x = x.to(device)
+#         #     layout = layout.to(device)
+#         #     # perturb data
+#         #     noise = torch.randn_like(x)
+#         #     t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
+#         #     x_pert = perturb_input(x, t, noise) # not OK
 
-        #     # use network to recover noise
-        #     pred_noise = nn_model(x_pert, t / timesteps, c=None, layout=layout)
+#         #     # use network to recover noise
+#         #     pred_noise = nn_model(x_pert, t / timesteps, c=None, layout=layout)
 
-        #     # loss is mean squared error between the predicted and true noise
-        #     loss = F.mse_loss(pred_noise, noise)
-        #     val_loss.append(loss.item())
-        # avg_loss=np.mean(val_loss)
-        # writer.add_scalar("Loss/val", avg_loss, ep)
-        # print("val loss:", avg_loss)
+#         #     # loss is mean squared error between the predicted and true noise
+#         #     loss = F.mse_loss(pred_noise, noise)
+#         #     val_loss.append(loss.item())
+#         # avg_loss=np.mean(val_loss)
+#         # writer.add_scalar("Loss/val", avg_loss, ep)
+#         # print("val loss:", avg_loss)
