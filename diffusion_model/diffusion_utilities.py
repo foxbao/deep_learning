@@ -250,7 +250,7 @@ def save_images(imgs,nrow=2,name="test.jpg"):
     plt.close()
 
 def save_layout_sample_gt(layouts,samples,gts,name="result.jpg"):
-    _, axs = plt.subplots(3, layouts.shape[0],figsize=(4,2 ))
+    _, axs = plt.subplots(3, layouts.shape[0],figsize=(16,8 ))
     axs[0][0].text(-0.6, 0.5, 'layout', ha='center', va='center', transform=axs[0, 0].transAxes)
     axs[1][0].text(-0.6, 0.5, 'sample', ha='center', va='center', transform=axs[1, 0].transAxes)
     axs[2][0].text(-0.6, 0.5, 'gt', ha='center', va='center', transform=axs[2, 0].transAxes)

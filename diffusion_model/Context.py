@@ -222,7 +222,7 @@ def show_images(imgs, nrow=2):
     _, axs = plt.subplots(nrow, imgs.shape[0] // nrow, figsize=(4,2 ))
     axs = axs.flatten()
     for img, ax in zip(imgs, axs):
-        img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
+        img = (img.permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2 # denormalize, from (-1, 1) to (0, 1)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.imshow(img)

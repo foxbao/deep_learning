@@ -11,7 +11,7 @@ from model import VAE
 from torch.utils.tensorboard import SummaryWriter
 
 # Hyperparameters
-n_epochs = 10
+n_epochs = 100
 kl_weight = 0.00025
 lr = 0.005
 writer = SummaryWriter('runs')
@@ -102,10 +102,10 @@ def main():
     model = VAE().to(device)
 
     # If you obtain the ckpt, load it
-    # model.load_state_dict(torch.load('model.pth', 'cuda:0'))
+    model.load_state_dict(torch.load('modelCeleb.pth', 'cuda:0'))
 
     # Choose the function
-    train(device, dataloader, model)
+    # train(device, dataloader, model)
     reconstruct(device, dataloader, model)
     generate(device, model)
 

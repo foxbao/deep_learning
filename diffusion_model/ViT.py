@@ -77,7 +77,7 @@ class Transformer(nn.Module):
         return x
 
 class ViT(nn.Module):
-    def __init__(self, *, image_size, out_channels,patch_size, dim = 1024, depth = 3, heads = 16, mlp_dim = 2048, dim_head = 64, dropout = 0.1, emb_dropout = 0.1):
+    def __init__(self, *, image_size, out_channels,patch_size, dim = 1024, depth = 3, heads = 16, mlp_dim = 2048, dim_head = 64, dropout = 0.1, emb_dropout = 0.1,concate_mode=False):
         super().__init__()
         channels, image_height, image_width = image_size   # 256,64,80
         patch_height, patch_width = pair(patch_size)       # 4*4
@@ -86,7 +86,7 @@ class ViT(nn.Module):
 
         num_patches = (image_height // patch_height) * (image_width // patch_width)     # 16*20
         patch_dim = 64 * patch_height * patch_width    # 64*8*10
-
+        self.concate_mode=concate_mode
         # self.conv1 = nn.Conv2d(channels, 64, 1)
 
         self.to_patch_embedding = nn.Sequential(
@@ -116,8 +116,9 @@ class ViT(nn.Module):
         x += self.pos_embedding[:, :(n + 1)]    # (1,320,1024)
         x = self.dropout(x)                     # (1,320,1024)
         x = self.transformer(x)                 # (1,320,1024)
-        x = self.to_img(x)
-        x=self.pool(x)
+        x = self.to_img(x)                      # use for concate
+        if not self.concate_mode:
+            x=self.pool(x)                      # use as context to the process
         return x                                # (1 256 64 80)
 
 

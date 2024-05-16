@@ -12,6 +12,8 @@ import numpy as np
 from IPython.display import HTML
 from diffusion_utilities import *
 from torch.utils.tensorboard import SummaryWriter
+from utils import *
+from ViT import *
 
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
@@ -27,11 +29,13 @@ class ContextUnet(nn.Module):
         # Initialize the initial convolutional layer
         self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
 
+
+        self.init_conv_layout = ResidualConvBlock(in_channels, n_feat, is_res=True)
         # Initialize the down-sampling path of the U-Net with two levels
         
         # self.down1 = UnetDown(n_feat, n_feat)
         
-        self.down1 = UnetDown(n_feat, n_feat)
+        self.down1 = UnetDown((1+4)*n_feat, n_feat)
         self.down2 = UnetDown(n_feat, 2* n_feat)
         self.down3 = UnetDown(2* n_feat, 4 * n_feat)        # down1 #[10, 256, 8, 8]
         # self.down4 = UnetDown(n_feat, n_feat)    # down2 #[10, 256, 4,  4]
@@ -53,6 +57,11 @@ class ContextUnet(nn.Module):
         # self.contextembed4 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed5 = EmbedFC(n_cfeat, 1*n_feat)
         # self.contextembed6 = EmbedFC(n_cfeat, 1*n_feat)
+        
+        self.vitembedConcate=ViT(
+            image_size=(n_feat, self.h, self.h), out_channels=4 * n_feat, patch_size=4,concate_mode=True
+        )
+
 
         # Initialize the up-sampling path of the U-Net with three levels
         self.up0 = nn.Sequential(
@@ -71,14 +80,16 @@ class ContextUnet(nn.Module):
         # Initialize the final convolutional layers to map to the same number of channels as the input image
         self.out = nn.Sequential(
             # reduce number of feature maps   #in_channels, out_channels, kernel_size, stride=1, padding=0
-            nn.Conv2d(2 * n_feat, n_feat, 3, 1, 1),
+            # nn.Conv2d(2 * n_feat, n_feat, 3, 1, 1),
+            
+            nn.Conv2d(5*n_feat+n_feat, n_feat, 3, 1, 1),
             nn.GroupNorm(8, n_feat),  # normalize
             nn.ReLU(),
             # map to same number of channels as input
             nn.Conv2d(n_feat, self.in_channels, 3, 1, 1),
         )
 
-    def forward(self, x, t, c=None):
+    def forward(self, x, t, c=None,layout=None,layout_concate=None):
         """
         x : (batch, n_feat, h, w) : input image
         t : (batch, n_cfeat)      : time step
@@ -87,7 +98,12 @@ class ContextUnet(nn.Module):
         # x is the input image, c is the context label, t is the timestep, context_mask says which samples to block the context on
 
         # pass the input image through the initial convolutional layer
+        layout_concate=self.init_conv_layout(layout_concate)
+        vembedConcate=self.vitembedConcate(layout_concate)
+        
+        
         x = self.init_conv(x)
+        x=torch.concat((x,vembedConcate),dim=1)
         # pass the result through the down-sampling path
         down1 = self.down1(x)  # [10, 256, 8, 8]
         down2 = self.down2(down1)  # [10, 256, 8, 8]
@@ -117,7 +133,13 @@ class ContextUnet(nn.Module):
         # cemb6 = self.contextembed6(c).view(-1, self.n_feat, 1, 1)
         # temb6 = self.timeembed6(t).view(-1, self.n_feat, 1, 1)
         # print(f"uunet forward: cemb1 {cemb1.shape}. temb1 {temb1.shape}, cemb2 {cemb2.shape}. temb2 {temb2.shape}")
+        if layout:
+            layout = self.init_conv_layout(layout)
 
+        # vembedConcate=self.vitembedConcate(layout_concate).view(-1, self.n_feat * 4, 1, 1)
+        # vembed1 = self.vitembed1(layout).view(-1, self.n_feat * 4, 1, 1)
+        # vembed2 = self.vitembed2(layout).view(-1, self.n_feat * 2, 1, 1)
+        # vembed3 = self.vitembed3(layout).view(-1, self.n_feat * 1, 1, 1)
         up1 = self.up0(hiddenvec)
         up2 = self.up1(cemb1*up1 + temb1, down3)  # add and multiply embeddings
         up3 = self.up2(cemb2*up2 + temb2, down2)
@@ -174,7 +196,15 @@ transform = transforms.Compose([
 
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
-dataset = CustomDataset2("/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
+# dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
+dataset = CustomDataset3(
+    img_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data",
+    img_names="data/parking_generate_data/data.txt",
+    layout_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_layout_data",
+    layout_names="data/parking_layout_data/data.txt",
+    transform=transform,
+    null_context=False,
+)
 # dataset = CustomDataset2("data/parking_layout_data", "data/parking_layout_data/data.txt",transform, null_context=True)
 
 # load dataset and construct optimizer
@@ -182,6 +212,21 @@ dataset = CustomDataset2("/home/baojiali/Downloads/parking2023/baojiali/park_gen
 
 dataloader = DataLoader(dataset, batch_size=batch_size,
                         shuffle=True, num_workers=1)
+
+val_dataset = CustomDataset3(
+    img_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/val_parking_generate_data",
+    img_names="data/val_parking_generate_data/data.txt",
+    layout_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/val_parking_layout_data",
+    layout_names="data/val_parking_layout_data/data.txt",
+    transform=transform,
+    null_context=False,
+)
+
+val_batch_size = 4
+dataloader_val = DataLoader(
+    val_dataset, batch_size=val_batch_size, shuffle=False, num_workers=1
+)
+
 optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
 # helper function: perturbs an image to a specified noise level
@@ -196,38 +241,44 @@ def perturb_input(x, t, noise):
 # set into train mode
 nn_model.train()
 
-for ep in range(n_epoch):
-    print(f'epoch {ep}')
 
-    # linearly decay learning rate
-    optim.param_groups[0]['lr'] = lrate*(1-ep/n_epoch)
+is_training = True
+if is_training:
+    for ep in range(n_epoch):
+        print(f"epoch {ep}")
+        # linearly decay learning rate
+        optim.param_groups[0]["lr"] = lrate * (1 - ep / n_epoch)
 
-    pbar = tqdm(dataloader, mininterval=2)
+        pbar = tqdm(dataloader, mininterval=2)
 
-    for x, _ in pbar:   # x: images
-        optim.zero_grad()
-        x = x.to(device)
+        for x, layout in pbar:  # x: images
+            optim.zero_grad()
+            x = x.to(device)
 
-        # perturb data
-        noise = torch.randn_like(x)
-        t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
-        x_pert = perturb_input(x, t, noise)
+            layout = layout.to(device)
 
-        # use network to recover noise
-        pred_noise = nn_model(x_pert, t / timesteps)
+            # perturb data
+            noise = torch.randn_like(x)
+            t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
+            x_pert = perturb_input(x, t, noise)
 
-        # loss is mean squared error between the predicted and true noise
-        loss = F.mse_loss(pred_noise, noise)
-        loss.backward()
-        optim.step()
-    writer.add_scalar('Loss/train', loss.item(), ep)
-    print("loss:",loss.item())
-    # save model periodically
-    if ep % 10 == 0 or ep == int(n_epoch-1):
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
-        print('saved model at ' + save_dir + f"model_{ep}.pth")
+            # use network to recover noise
+            pred_noise = nn_model(x_pert, t / timesteps, c=None, layout=None,layout_concate=layout)
+
+            # loss is mean squared error between the predicted and true noise
+            loss = F.mse_loss(pred_noise, noise)
+            loss.backward()
+            optim.step()
+        writer.add_scalar("Loss/train", loss.item(), ep)
+        print("loss:", loss.item())
+        # save model periodically
+        if ep % 10 == 0 or ep == int(n_epoch - 1):
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
+            print("saved model at " + save_dir + f"model_{ep}.pth")
+
+
 
 # helper function; removes the predicted noise (but adds some noise back in to avoid collapse)
 
@@ -242,6 +293,30 @@ def denoise_add_noise(x, t, pred_noise, z=None):
 
 # sample using standard algorithm
 
+@torch.no_grad()
+def sample_ddpm_context(n_sample, layout, save_rate=20):
+    # x_T ~ N(0, 1), sample initial noise
+    samples = torch.randn(n_sample, 3, height, height).to(device)
+
+    # array to keep track of generated steps for plotting
+    intermediate = []
+    for i in range(timesteps, 0, -1):
+        print(f"sampling timestep {i:3d}", end="\r")
+
+        # reshape time tensor
+        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
+
+        # sample some random noise to inject back in. For i = 1, don't add back in noise
+        z = torch.randn_like(samples) if i > 1 else 0
+
+        # predict noise e_(x_t,t, ctx)
+        eps = nn_model(samples, t, c=None, layout=None,layout_concate=layout)
+        samples = denoise_add_noise(samples, i, eps, z)
+        if i % save_rate == 0 or i == timesteps or i < 8:
+            intermediate.append(samples.detach().cpu().numpy())
+
+    intermediate = np.stack(intermediate)
+    return samples, intermediate
 
 @torch.no_grad()
 def sample_ddpm(n_sample, save_rate=20):
@@ -274,11 +349,24 @@ nn_model.load_state_dict(torch.load(
 nn_model.eval()
 print("Loaded in Model")
 
+
+for idx, (gt, layout) in enumerate(dataloader_val):
+    gt = gt.to(device)
+    layout = layout.to(device)
+    samples, intermediate = sample_ddpm_context(layout.shape[0], layout)
+    # samples=torch.randn_like(layout)
+    # save_images(layout, nrow=2, name=str(idx) + "_layout.jpg")
+    # save_images(gt, nrow=2, name=str(idx) + "_gt.jpg")
+
+    save_layout_sample_gt(
+        layouts=layout, samples=samples, gts=gt, name=str(idx) + "_triple.jpg"
+    )
+
 # visualize samples
-plt.clf()
-samples, intermediate_ddpm = sample_ddpm(32)
+# plt.clf()
+# samples, intermediate_ddpm = sample_ddpm(32)
 
 
-animation_ddpm = plot_sample(
-    intermediate_ddpm, 32, 4, save_dir, "ani_run"+str(n_epoch-1), None, save=True)
-HTML(animation_ddpm.to_jshtml())
+# animation_ddpm = plot_sample(
+#     intermediate_ddpm, 32, 4, save_dir, "ani_run"+str(n_epoch-1), None, save=True)
+# HTML(animation_ddpm.to_jshtml())
