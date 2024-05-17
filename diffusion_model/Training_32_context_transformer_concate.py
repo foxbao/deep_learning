@@ -41,6 +41,10 @@ class ContextUnet(nn.Module):
         # self.down4 = UnetDown(n_feat, n_feat)    # down2 #[10, 256, 4,  4]
         # self.down5 = UnetDown(n_feat, 2 * n_feat)
         # original: self.to_vec = nn.Sequential(nn.AvgPool2d(7), nn.GELU())
+        
+        self.timeembed_down_1 = EmbedFC(1, 1*n_feat)
+        self.timeembed_down_2 = EmbedFC(1, 2*n_feat)
+        self.timeembed_down_3 = EmbedFC(1, 4*n_feat)
         self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
 
         # Embed the timestep and context labels with a one-layer fully connected neural network
@@ -103,15 +107,18 @@ class ContextUnet(nn.Module):
         
         x = self.init_conv(x)
         x=torch.concat((x,vembedConcate),dim=1)
+        temb_down_1 = self.timeembed_down_1(t).view(-1, self.n_feat * 1, 1, 1)
+        temb_down_2 = self.timeembed_down_2(t).view(-1, self.n_feat * 2, 1, 1)
+        temb_down_3 = self.timeembed_down_3(t).view(-1, self.n_feat * 4, 1, 1)
         # pass the result through the down-sampling path
         down1 = self.down1(x)  # [10, 256, 8, 8]
-        down2 = self.down2(down1)  # [10, 256, 8, 8]
-        down3 = self.down3(down2)  # [10, 256, 4, 4]
+        down2 = self.down2(down1+temb_down_1)  # [10, 256, 8, 8]
+        down3 = self.down3(down2+temb_down_2)  # [10, 256, 4, 4]
         # down4 = self.down4(down3)
         # down5 = self.down5(down4)
         # down6 = self.down6(down5)
         # convert the feature maps to a vector and apply an activation
-        hiddenvec = self.to_vec(down3)
+        hiddenvec = self.to_vec(down3+temb_down_3)
         # hiddenvec2=self.to_vec(down3)
         # mask out context if context_mask == 1
         if c is None:
@@ -271,7 +278,7 @@ if is_training:
         writer.add_scalar("Loss/train", loss.item(), ep)
         print("loss:", loss.item())
         # save model periodically
-        if ep % 10 == 0 or ep == int(n_epoch - 1):
+        if ep % 100 == 0 or ep == int(n_epoch - 1):
             if not os.path.exists(save_dir):
                 os.mkdir(save_dir)
             torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
@@ -343,8 +350,10 @@ def sample_ddpm(n_sample, save_rate=20):
 
 
 # load in model weights and set to eval mode
+# nn_model.load_state_dict(torch.load(
+#     f"{save_dir}/model_{1500}.pth", map_location=device))
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
+    f"{save_dir}/good/model_830_32_vit_concate.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 

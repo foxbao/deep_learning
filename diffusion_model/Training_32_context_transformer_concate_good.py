@@ -101,7 +101,6 @@ class ContextUnet(nn.Module):
         layout_concate=self.init_conv_layout(layout_concate)
         vembedConcate=self.vitembedConcate(layout_concate)
         
-        
         x = self.init_conv(x)
         x=torch.concat((x,vembedConcate),dim=1)
         # pass the result through the down-sampling path
