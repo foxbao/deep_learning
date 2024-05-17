@@ -217,10 +217,11 @@ transform = transforms.Compose([
 # # load dataset and construct optimizer
 # dataset = CustomDataset2("data/jaffe", "data/jaffe/jaffe.txt", transform, null_context=True)
 # dataset = CustomDataset2("data/parking_generate_data", "data/parking_generate_data/data.txt",transform, null_context=True)
+home_dir = os.path.expanduser('~')
 dataset = CustomDataset3(
-    img_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data",
+    img_dir=os.path.join(home_dir, "Downloads/parking2023/baojiali/park_generate/parking_generate_data"),
     img_names="data/parking_generate_data/data.txt",
-    layout_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_layout_data",
+    layout_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/parking_layout_data"),
     layout_names="data/parking_layout_data/data.txt",
     transform=transform,
     null_context=False,
@@ -230,9 +231,9 @@ dataset = CustomDataset3(
 # load dataset and construct optimizer
 # dataset = CustomDataset("./sprites_1788_16x16.npy", "./sprite_labels_nc_1788_16x16.npy", transform, null_context=False)
 val_dataset = CustomDataset3(
-    img_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_generate_data",
+    img_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/val_parking_generate_data"),
     img_names="data/val_parking_generate_data/data.txt",
-    layout_dir="/home/baojiali/Downloads/parking2023/baojiali/park_generate/parking_layout_data",
+    layout_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
     layout_names="data/val_parking_layout_data/data.txt",
     transform=transform,
     null_context=False,
@@ -259,7 +260,7 @@ def perturb_input(x, t, noise):
 #     f"{save_dir}/model_70.pth", map_location=device))
 # nn_model.train()
 
-is_training = False
+is_training = True
 if is_training:
     nn_model.train()
     for ep in range(n_epoch):
