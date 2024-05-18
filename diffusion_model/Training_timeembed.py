@@ -34,8 +34,8 @@ class ContextUnet(nn.Module):
         self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
 
         # Embed the timestep and context labels with a one-layer fully connected neural network
-        self.timeembed1 = EmbedFC(1, 2*n_feat)
-        self.timeembed2 = EmbedFC(1, 1*n_feat)
+        self.timeembed1 = EmbedFC(128, 2*n_feat)
+        self.timeembed2 = EmbedFC(128, 1*n_feat)
         self.contextembed1 = EmbedFC(n_cfeat, 2*n_feat)
         self.contextembed2 = EmbedFC(n_cfeat, 1*n_feat)
 
@@ -148,7 +148,7 @@ class TimeEmbedding(nn.Module):
         emb = torch.exp(torch.arange(half_dim, dtype=torch.float32,device=device) * -emb)
         emb = t[:, None] * emb[None, :]
         emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
-        return t
+        return emb
 # training without context code
 embedding_dim = 128  # 嵌入维度
 time_embedding = TimeEmbedding(embedding_dim).to(device)
@@ -171,7 +171,7 @@ if train_mode:
             # perturb data
             noise = torch.randn_like(x)
             t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device) 
-            time_emb = time_embedding(t/timesteps)
+            time_emb = time_embedding(t/1.0)
             
             # aaaa=get_time_embeddings(t)
             x_pert = perturb_input(x, t, noise)
@@ -215,7 +215,7 @@ def sample_ddpm(n_sample, save_rate=20):
         print(f'sampling timestep {i:3d}', end='\r')
 
         # reshape time tensor
-        t = torch.tensor([i / timesteps]).to(device)
+        t = torch.tensor([i/1.0]).to(device)
         
         time_emb = time_embedding(t)
 
