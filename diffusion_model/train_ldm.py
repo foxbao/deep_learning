@@ -103,7 +103,7 @@ def train():
     save_dir = './weights/'
 
     # training hyperparameters
-    batch_size = 2
+    batch_size = 10
     n_epoch = 2000
     lrate = 1e-3
 
