@@ -178,7 +178,7 @@ save_dir = './weights/'
 
 # training hyperparameters
 batch_size = 100
-n_epoch = 2000
+n_epoch = 1000
 lrate = 1e-3
 
 
@@ -260,7 +260,7 @@ def get_time_embedding(timestep):
 nn_model.train()
 
 
-is_training = True
+is_training = False
 if is_training:
     for ep in range(n_epoch):
         print(f"epoch {ep}")
@@ -325,12 +325,12 @@ def sample_ddpm_context(n_sample, layout, save_rate=20):
 
         # reshape time tensor
         t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
-
+        time_embedding = get_time_embedding(t).to(device)
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
 
         # predict noise e_(x_t,t, ctx)
-        eps = nn_model(samples, t, c=None,layout_concate=layout)
+        eps = nn_model(samples, time_embedding, c=None,layout_concate=layout)
         samples = denoise_add_noise(samples, i, eps, z)
         if i % save_rate == 0 or i == timesteps or i < 8:
             intermediate.append(samples.detach().cpu().numpy())
@@ -367,7 +367,7 @@ def sample_ddpm(n_sample, save_rate=20):
 # nn_model.load_state_dict(torch.load(
 #     f"{save_dir}/model_{1500}.pth", map_location=device))
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/good/model_830_32_vit_concate.pth", map_location=device))
+    f"{save_dir}/model_100.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 
