@@ -14,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from diffusion import Diffusion
 import os
 from diffusion_utilities import *
+from PIL import Image
 
 
 
@@ -149,6 +150,12 @@ def train():
         pbar = tqdm(dataloader_train, mininterval=2)
         for x, layout in pbar:   # x: images
             optim.zero_grad()
+            
+            
+            
+            # x2 = (x[0].permute(1, 2, 0).clip(-1, 1).numpy() + 1) / 2
+            # im = Image.fromarray(x[0])
+            # im.save("1.jpg")
             x = x.to(device)
             layout = layout.to(device)
             # perturb data
@@ -159,6 +166,8 @@ def train():
             time_embedding = get_time_embedding(t).to(device)
             x_pert = perturb_input(ab_t,x, t, noise)
             
+            for idx, pert in enumerate(x_pert):
+                save_image(x_pert[idx],"x_pert_"+f"{idx}.jpg")
             # use network to recover noise
             pred_noise = nn_model(x=x_pert, context=None,time=time_embedding)
             # loss is mean squared error between the predicted and true noise
@@ -178,10 +187,33 @@ def get_time_embedding(timestep):
     # Shape: (160,)
     freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32) / 160) 
     # Shape: (1, 160)
+    
+    aaaa=torch.tensor([timestep], dtype=torch.float32)[:, None]
+    bbbb=freqs[None]
     x = torch.tensor([timestep], dtype=torch.float32)[:, None] * freqs[None]
     # Shape: (1, 160 * 2)
     return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
 
+
+# 假设 tensor 是你的图片 tensor
+def tensor_to_image(tensor):
+    # 逆归一化：从 [-1, 1] 到 [0, 1]
+    tensor = tensor * 0.5 + 0.5
+    # 转换为 numpy 数组并转置维度：从 (C, H, W) 到 (H, W, C)
+    np_image = tensor.cpu().numpy().transpose(1, 2, 0)
+    # 从 [0, 1] 变换到 [0, 255]
+    np_image = (np_image * 255).astype(np.uint8)
+    # 转换为 PIL Image
+    image = Image.fromarray(np_image)
+    return image
+
+# 假设 tensor 是从数据集中获取的单张图片
+# tensor = dataset[0][0]  # 示例：从数据集中获取第一张图片
+
+# 保存图片
+def save_image(tensor, filename):
+    image = tensor_to_image(tensor)
+    image.save(filename)
 
 
 def main():
