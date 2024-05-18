@@ -165,6 +165,14 @@ def train():
             loss = F.mse_loss(pred_noise, noise)
             loss.backward()
             optim.step()
+        writer.add_scalar("Loss/train", loss.item(), ep)
+        print("loss:", loss.item())
+        # save model periodically
+        if ep % 100 == 0 or ep == int(n_epoch - 1):
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
+            print("saved model at " + save_dir + f"model_{ep}.pth")
 
 def get_time_embedding(timestep):
     # Shape: (160,)
