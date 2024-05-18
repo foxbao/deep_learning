@@ -14,7 +14,7 @@ from diffusion_utilities import *
 from torch.utils.tensorboard import SummaryWriter
 from utils import *
 from ViT import *
-
+import math
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28,hidden_layers_n=3):  # cfeat - context features
         super(ContextUnet, self).__init__()
@@ -244,19 +244,21 @@ optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 def perturb_input(x, t, noise):
     return ab_t.sqrt()[t, None, None, None] * x + (1 - ab_t[t, None, None, None]) * noise
 
+
+
+class TimeEmbedding(nn.Module):
+    def __init__(self, embedding_dim):
+        super(TimeEmbedding, self).__init__()
+        self.embedding_dim = embedding_dim
+
+    def forward(self, t):
+        half_dim = self.embedding_dim // 2
+        emb = math.log(10000) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, dtype=torch.float32,device=device) * -emb)
+        emb = t[:, None] * emb[None, :]
+        emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
+        return emb
 # training without context code
-
-
-def get_time_embedding(timestep):
-    # Shape: (160,)
-    freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32) / 160) 
-    # Shape: (1, 160)
-    x = torch.tensor([timestep], dtype=torch.float32)[:, None] * freqs[None]
-    # Shape: (1, 160 * 2)
-    return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
-
-# set into train mode
-
 
 
 is_training = True
