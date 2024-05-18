@@ -242,6 +242,9 @@ optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
 
 def perturb_input(x, t, noise):
+    tttt=ab_t.sqrt()
+    tttt2=ab_t.sqrt()[t]
+    tttt3=ab_t.sqrt()[t, None, None, None]
     return ab_t.sqrt()[t, None, None, None] * x + (1 - ab_t[t, None, None, None]) * noise
 
 # training without context code

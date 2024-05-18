@@ -177,7 +177,7 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 100
+batch_size = 8
 n_epoch = 1000
 lrate = 1e-3
 
@@ -260,7 +260,7 @@ def get_time_embedding(timestep):
 nn_model.train()
 
 
-is_training = False
+is_training = True
 if is_training:
     for ep in range(n_epoch):
         print(f"epoch {ep}")
