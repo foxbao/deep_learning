@@ -190,7 +190,7 @@ in_channels = 3  # dont forget to modify cmap='gray'
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 20
+batch_size = 25
 n_epoch = 2000
 lrate = 1e-3
 
@@ -256,11 +256,11 @@ def perturb_input(x, t, noise):
 
 
 # set into train mode
-# nn_model.load_state_dict(torch.load(
-#     f"{save_dir}/model_70.pth", map_location=device))
+nn_model.load_state_dict(torch.load(
+    f"{save_dir}/model_270.pth", map_location=device))
 # nn_model.train()
 
-is_training = True
+is_training = False
 if is_training:
     nn_model.train()
     for ep in range(n_epoch):
@@ -364,7 +364,7 @@ def sample_ddpm(n_sample, save_rate=20):
 
 # load in model weights and set to eval mode
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/model_{60}.pth", map_location=device))
+    f"{save_dir}/model_{1360}.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 
@@ -383,10 +383,10 @@ for idx, (gt, layout) in enumerate(dataloader_val):
         intermediate, val_batch_size, 2, save_dir, "ani_run_"+str(idx), None, save=True)
     # HTML(animation_ddpm.to_jshtml())
 # visualize samples
-plt.clf()
-samples, intermediate_ddpm = sample_ddpm(32)
+# plt.clf()
+# samples, intermediate_ddpm = sample_ddpm(32)
 
 
-animation_ddpm = plot_sample(
-    intermediate_ddpm, val_batch_size, 4, save_dir, "ani_run"+str(n_epoch-1), None, save=True)
-HTML(animation_ddpm.to_jshtml())
+# animation_ddpm = plot_sample(
+#     intermediate_ddpm, val_batch_size, 4, save_dir, "ani_run"+str(n_epoch-1), None, save=True)
+# HTML(animation_ddpm.to_jshtml())
