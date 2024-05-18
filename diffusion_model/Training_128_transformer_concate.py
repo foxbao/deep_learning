@@ -190,7 +190,7 @@ in_channels = 3  # dont forget to modify cmap='gray'
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 10
+batch_size = 20
 n_epoch = 2000
 lrate = 1e-3
 
