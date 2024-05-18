@@ -177,7 +177,7 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 100
+batch_size = 8
 n_epoch = 2000
 lrate = 1e-3
 

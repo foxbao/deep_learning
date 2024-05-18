@@ -224,6 +224,8 @@ dataset = CustomDataset3(
     transform=transform,
     null_context=False,
 )
+dataloader = DataLoader(dataset, batch_size=batch_size,
+                        shuffle=True, num_workers=1)
 
 val_dataset = CustomDataset3(
     img_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/val_parking_generate_data"),
@@ -233,8 +235,7 @@ val_dataset = CustomDataset3(
     transform=transform,
     null_context=False,
 )
-dataloader = DataLoader(dataset, batch_size=batch_size,
-                        shuffle=True, num_workers=1)
+
 
 val_batch_size=5
 dataloader_val = DataLoader(
