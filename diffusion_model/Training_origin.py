@@ -12,7 +12,6 @@ import numpy as np
 from IPython.display import HTML
 from diffusion_utilities import *
 from torch.utils.tensorboard import SummaryWriter
-import math
 class ContextUnet(nn.Module):
     def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28):  # cfeat - context features
         super(ContextUnet, self).__init__()
@@ -34,8 +33,8 @@ class ContextUnet(nn.Module):
         self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
 
         # Embed the timestep and context labels with a one-layer fully connected neural network
-        self.timeembed1 = EmbedFC(128, 2*n_feat)
-        self.timeembed2 = EmbedFC(128, 1*n_feat)
+        self.timeembed1 = EmbedFC(1, 2*n_feat)
+        self.timeembed2 = EmbedFC(1, 1*n_feat)
         self.contextembed1 = EmbedFC(n_cfeat, 2*n_feat)
         self.contextembed2 = EmbedFC(n_cfeat, 1*n_feat)
 
@@ -137,25 +136,12 @@ optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 def perturb_input(x, t, noise):
     return ab_t.sqrt()[t, None, None, None] * x + (1 - ab_t[t, None, None, None]) * noise
 
-class TimeEmbedding(nn.Module):
-    def __init__(self, embedding_dim):
-        super(TimeEmbedding, self).__init__()
-        self.embedding_dim = embedding_dim
-
-    def forward(self, t):
-        half_dim = self.embedding_dim // 2
-        emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, dtype=torch.float32,device=device) * -emb)
-        emb = t[:, None] * emb[None, :]
-        emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
-        return emb
 # training without context code
-embedding_dim = 128  # 嵌入维度
-time_embedding = TimeEmbedding(embedding_dim).to(device)
+
 # set into train mode
 nn_model.train()
 
-train_mode=True
+train_mode=False
 if train_mode:
     for ep in range(n_epoch):
         print(f'epoch {ep}')
@@ -171,15 +157,10 @@ if train_mode:
             # perturb data
             noise = torch.randn_like(x)
             t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device) 
-            time_emb = time_embedding(t/1.0)
-            
-            # aaaa=get_time_embeddings(t)
             x_pert = perturb_input(x, t, noise)
             
-            
-            
             # use network to recover noise
-            pred_noise = nn_model(x_pert, time_emb)
+            pred_noise = nn_model(x_pert, t / timesteps)
             
             # loss is mean squared error between the predicted and true noise
             loss = F.mse_loss(pred_noise, noise)
@@ -215,14 +196,12 @@ def sample_ddpm(n_sample, save_rate=20):
         print(f'sampling timestep {i:3d}', end='\r')
 
         # reshape time tensor
-        t = torch.tensor([i/1.0]).to(device)
-        
-        time_emb = time_embedding(t)
+        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
 
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
 
-        eps = nn_model(samples, time_emb)    # predict noise e_(x_t,t)
+        eps = nn_model(samples, t)    # predict noise e_(x_t,t)
         samples = denoise_add_noise(samples, i, eps, z)
         if i % save_rate ==0 or i==timesteps or i<8:
             intermediate.append(samples.detach().cpu().numpy())
@@ -260,7 +239,6 @@ print("Loaded in Model")
 # visualize samples
 plt.clf()
 samples, intermediate_ddpm = sample_ddpm(32)
+# samples, intermediate_ddpm = sample_ddpm(32)
 save_images(samples, nrow=4, name=str(1) + "samples.jpg")
-# animation_ddpm = plot_sample(intermediate_ddpm,32,4,save_dir, "ani_run", None, save=True)
-# HTML(animation_ddpm.to_jshtml())
 

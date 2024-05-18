@@ -9,6 +9,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 from PIL import Image
 import pandas as pd
+import math
 
 
 class ResidualConvBlock(nn.Module):
@@ -411,6 +412,20 @@ transform = transforms.Compose([
     transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
     transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
 ])
+
+
+class TimeEmbedding(nn.Module):
+    def __init__(self, embedding_dim):
+        super(TimeEmbedding, self).__init__()
+        self.embedding_dim = embedding_dim
+
+    def forward(self, t,device='cuda'):
+        half_dim = self.embedding_dim // 2
+        emb = math.log(10000) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, dtype=torch.float32,device=device) * -emb)
+        emb = t[:, None] * emb[None, :]
+        emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
+        return emb
 
 
 # # training without context code
