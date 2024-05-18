@@ -161,7 +161,7 @@ class ContextUnet(nn.Module):
 
 
 # diffusion hyperparameters
-timesteps = 500
+timesteps = 50
 beta1 = 1e-4
 beta2 = 0.02
 
@@ -255,11 +255,13 @@ def get_time_embedding(timestep):
     # Shape: (1, 160 * 2)
     return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
 
-
 # set into train mode
+
+
+
+is_training = True
+
 nn_model.train()
-
-
 is_training = True
 if is_training:
     for ep in range(n_epoch):
@@ -324,7 +326,7 @@ def sample_ddpm_context(n_sample, layout, save_rate=20):
         print(f"sampling timestep {i:3d}", end="\r")
 
         # reshape time tensor
-        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
+        t = torch.tensor([i])[:, None, None, None].to(device)
         time_embedding = get_time_embedding(t).to(device)
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
@@ -349,7 +351,7 @@ def sample_ddpm(n_sample, save_rate=20):
         print(f'sampling timestep {i:3d}', end='\r')
 
         # reshape time tensor
-        t = torch.tensor([i / timesteps])[:, None, None, None].to(device)
+        t = torch.tensor([i])[:, None, None, None].to(device)
 
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
@@ -367,7 +369,7 @@ def sample_ddpm(n_sample, save_rate=20):
 # nn_model.load_state_dict(torch.load(
 #     f"{save_dir}/model_{1500}.pth", map_location=device))
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/model_100.pth", map_location=device))
+    f"{save_dir}/model_{500}.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 
