@@ -45,15 +45,15 @@ class ContextUnet(nn.Module):
         # self.down5 = UnetDown(n_feat, 2 * n_feat)
         # original: self.to_vec = nn.Sequential(nn.AvgPool2d(7), nn.GELU())
         
-        self.timeembed_down_1 = EmbedFC(320, 1*n_feat)
-        self.timeembed_down_2 = EmbedFC(320, 2*n_feat)
-        self.timeembed_down_3 = EmbedFC(320, 4*n_feat)
+        self.timeembed_down_1 = EmbedFC(128, 1*n_feat)
+        self.timeembed_down_2 = EmbedFC(128, 2*n_feat)
+        self.timeembed_down_3 = EmbedFC(128, 4*n_feat)
         self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
 
         # Embed the timestep and context labels with a one-layer fully connected neural network
-        self.timeembed1 = EmbedFC(320, 4*n_feat)
-        self.timeembed2 = EmbedFC(320, 2*n_feat)
-        self.timeembed3 = EmbedFC(320, 1*n_feat)
+        self.timeembed1 = EmbedFC(128, 4*n_feat)
+        self.timeembed2 = EmbedFC(128, 2*n_feat)
+        self.timeembed3 = EmbedFC(128, 1*n_feat)
         # self.timeembed4 = EmbedFC(1, 1*n_feat)
         # self.timeembed5 = EmbedFC(1, 1*n_feat)
         # self.timeembed6 = EmbedFC(1, 1*n_feat)
@@ -259,6 +259,9 @@ class TimeEmbedding(nn.Module):
         emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
         return emb
 # training without context code
+embedding_dim = 128  # 嵌入维度
+time_embedding = TimeEmbedding(embedding_dim).to(device)
+# training without context code
 
 
 is_training = True
@@ -281,13 +284,13 @@ if is_training:
 
             # perturb data
             noise = torch.randn_like(x)
-            t = torch.randint(1, timesteps + 1, ()).to(device)
+            t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
             
-            time_embedding = get_time_embedding(t).to(device)
+            time_emb = time_embedding(t/1.0)
             x_pert = perturb_input(x, t, noise)
 
             # use network to recover noise
-            pred_noise = nn_model(x_pert, time_embedding, c=None, layout_concate=layout)
+            pred_noise = nn_model(x_pert, time_emb, c=None, layout_concate=layout)
 
             # loss is mean squared error between the predicted and true noise
             loss = F.mse_loss(pred_noise, noise)
@@ -328,13 +331,14 @@ def sample_ddpm_context(n_sample, layout, save_rate=20):
         print(f"sampling timestep {i:3d}", end="\r")
 
         # reshape time tensor
-        t = torch.tensor([i])[:, None, None, None].to(device)
-        time_embedding = get_time_embedding(t).to(device)
+        # t = torch.tensor([i])[:, None, None, None].to(device)
+        t = torch.tensor([i/1.0]).to(device)
+        time_emb = time_embedding(t)
         # sample some random noise to inject back in. For i = 1, don't add back in noise
         z = torch.randn_like(samples) if i > 1 else 0
 
         # predict noise e_(x_t,t, ctx)
-        eps = nn_model(samples, time_embedding, c=None,layout_concate=layout)
+        eps = nn_model(samples, time_emb, c=None,layout_concate=layout)
         samples = denoise_add_noise(samples, i, eps, z)
         if i % save_rate == 0 or i == timesteps or i < 8:
             intermediate.append(samples.detach().cpu().numpy())
