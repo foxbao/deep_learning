@@ -20,7 +20,7 @@ import math
 
 class ContextUnet(nn.Module):
     # cfeat - context features
-    def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28, hidden_layers_n=3):
+    def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28, time_dim=128):
         super(ContextUnet, self).__init__()
 
         # number of input channels, number of intermediate feature maps and number of classes
@@ -38,38 +38,55 @@ class ContextUnet(nn.Module):
 
         # (Batch_Size, 3, Height , Width)->(Batch_Size, (1+4)*n_feat, Height , Width)
         # self.layout_embed = LayoutEmbed(in_channels, n_feat, self.h)
-        self.final = UNET_OutputLayer(320, 3)
+        self.final = UNET_OutputLayer((1+4)*n_feat, 3)
         self.encoders = nn.ModuleList([
             SwitchSequential(LayoutEmbed(in_channels, n_feat, self.h)),
-            # (Batch_Size, (1+4)*n_feat, Height , Width)->(Batch_Size, n_feat, Height/2, Width/2)
-            SwitchSequential(UNET_ResidualBlock(in_channels=(
-                1+4)*n_feat, out_channels=n_feat, n_time=128), nn.Conv2d(n_feat,n_feat,kernel_size=3,stride=2,padding=1)),
-            # (Batch_Size, n_feat, Height/2, Width/2)->(Batch_Size, 2*n_feat, Height/4, Width/4)
-            SwitchSequential(UNET_ResidualBlock(
-                in_channels=n_feat, out_channels=2 * n_feat, n_time=128), nn.Conv2d(2 *n_feat,2 *n_feat,kernel_size=3,stride=2,padding=1)),
-            # (Batch_Size, 2*n_feat, Height/4, Width/4)->(Batch_Size, 4*n_feat, Height/8, Width/8)
-            SwitchSequential(UNET_ResidualBlock(
-                in_channels=2 * n_feat, out_channels=4 * n_feat, n_time=128), nn.Conv2d(4 *n_feat,4 *n_feat,kernel_size=3,stride=2,padding=1))
+            # (Batch_Size, (1+4)*n_feat, Height , Width)->(Batch_Size, n_feat, Height, Width)
+            SwitchSequential(UNET_ResidualBlock((1+4)*n_feat, n_feat,time_dim), UNET_AttentionBlock(8, 8)),
+            # (Batch_Size, n_feat, Height, Width)->(Batch_Size, n_feat, Height/2, Width/2)
+            SwitchSequential(nn.Conv2d(1 *n_feat,1 *n_feat,kernel_size=3,stride=2,padding=1)),
+            # (Batch_Size, n_feat, Height/2, Width/2)->(Batch_Size, n_feat*2, Height/2, Width/2)
+            SwitchSequential(UNET_ResidualBlock(1*n_feat, 2*n_feat,time_dim), UNET_AttentionBlock(8, 16)),
+            # (Batch_Size, n_feat*2, Height/2, Width/2)->(Batch_Size, n_feat*2, Height/4, Width/4)
+            SwitchSequential(nn.Conv2d(2 *n_feat,2 *n_feat,kernel_size=3,stride=2,padding=1)),
+            
+            # (Batch_Size, n_feat*2, Height/4, Width/4)->(Batch_Size, n_feat*4, Height/4, Width/4)
+            SwitchSequential(UNET_ResidualBlock(2*n_feat, 4*n_feat,time_dim), UNET_AttentionBlock(8, 32)),
+            # (Batch_Size, n_feat*4, Height/4, Width/4)->(Batch_Size, n_feat*4, Height/8, Width/8)
+            SwitchSequential(nn.Conv2d(4 *n_feat,4 *n_feat,kernel_size=3,stride=2,padding=1)),
         ])
         self.bottleneck = SwitchSequential(
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
-            UNET_ResidualBlock(4 * n_feat, 4 * n_feat, n_time=128), 
+            UNET_ResidualBlock(4 * n_feat, 4 * n_feat, n_time=time_dim), 
             
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
             # UNET_AttentionBlock(8, 160), 
+            UNET_AttentionBlock(8, 32), 
             
             # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
-            UNET_ResidualBlock(4 * n_feat, 4 * n_feat, n_time=128), 
+            UNET_ResidualBlock(4 * n_feat, 4 * n_feat, n_time=time_dim), 
         )
 
         self.decoders = nn.ModuleList([
-            SwitchSequential(UNET_ResidualBlock(8 * n_feat, 2*n_feat, n_time=128),
+            # (Batch_Size, n_feat, Height/8, Width/8)->(Batch_Size, 2*n_feat, Height/4, Width/4)
+            SwitchSequential(UNET_ResidualBlock(8 * n_feat, 4*n_feat, time_dim),
+                             nn.ConvTranspose2d(4*n_feat, 4*n_feat, 2, 2)),
+            #(Batch_Size, 2*n_feat, Height/4, Width/4)->(Batch_Size, 2*n_feat, Height/4, Width/4)
+            SwitchSequential(UNET_ResidualBlock(8 * n_feat, 2*n_feat, time_dim),UNET_AttentionBlock(8, 16)),
+            # (Batch_Size, 2*n_feat, Height/4, Width/4)->(Batch_Size, 2*n_feat, Height/2, Width/2)
+            SwitchSequential(UNET_ResidualBlock(4 * n_feat, 2*n_feat, n_time=time_dim),
                              nn.ConvTranspose2d(2*n_feat, 2*n_feat, 2, 2)),
-            SwitchSequential(UNET_ResidualBlock(4 * n_feat, 1*n_feat, n_time=128),
+            
+            SwitchSequential(UNET_ResidualBlock(4 * n_feat, 1*n_feat, n_time=time_dim),
+                             UNET_AttentionBlock(8, 8)),
+            SwitchSequential(UNET_ResidualBlock(2 * n_feat, 1*n_feat, n_time=time_dim),
                              nn.ConvTranspose2d(1*n_feat, 1*n_feat, 2, 2)),
-            SwitchSequential(UNET_ResidualBlock(2 * n_feat, 1*n_feat, n_time=128),
-                             nn.ConvTranspose2d(1*n_feat, 1*n_feat, 2, 2)),
-            SwitchSequential(UNET_ResidualBlock(6 * n_feat, 5*n_feat, n_time=128))
+            SwitchSequential(UNET_ResidualBlock(2 * n_feat, 1*n_feat, n_time=time_dim),
+                             UNET_AttentionBlock(8, 8)),
+            SwitchSequential(UNET_ResidualBlock(6 * n_feat, 5*n_feat, n_time=time_dim),
+                             UNET_AttentionBlock(8, 40)),
+            
+            # SwitchSequential(UNET_ResidualBlock(6 * n_feat, 5*n_feat, n_time=time_dim))
         ])
 
 
@@ -79,6 +96,9 @@ class ContextUnet(nn.Module):
         t : (batch, n_cfeat)      : time step
         c : (batch, n_classes)    : context label
         """
+        if not c:
+            c=torch.zeros(x.shape[0],77, 768).to(device)
+            pass
 
         # x = self.layout_embed(x=x, layout=layout_concate)
         residue = x
@@ -140,7 +160,7 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 256
+batch_size = 16
 n_epoch = 1000
 lrate = 1e-3
 
