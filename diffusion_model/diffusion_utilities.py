@@ -11,7 +11,7 @@ from PIL import Image
 import pandas as pd
 import math
 from torch.nn import functional as F
-
+from ViT import *
 
 class ResidualConvBlock(nn.Module):
     def __init__(
@@ -118,6 +118,57 @@ class UnetDown(nn.Module):
         # Pass the input through the sequential model and return the output
         return self.model(x)
     
+class UNET_ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, n_time=128):
+        super().__init__()
+        self.groupnorm_feature = nn.GroupNorm(32, in_channels)
+        self.conv_feature = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.linear_time = nn.Linear(n_time, out_channels)
+
+        self.groupnorm_merged = nn.GroupNorm(32, out_channels)
+        self.conv_merged = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+
+        if in_channels == out_channels:
+            self.residual_layer = nn.Identity()
+        else:
+            self.residual_layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+    
+    def forward(self, feature, time):
+        # feature: (Batch_Size, In_Channels, Height, Width)
+        # time: (1, 1280)
+
+        residue = feature
+        
+        # (Batch_Size, In_Channels, Height, Width) -> (Batch_Size, In_Channels, Height, Width)
+        feature = self.groupnorm_feature(feature)
+        
+        # (Batch_Size, In_Channels, Height, Width) -> (Batch_Size, In_Channels, Height, Width)
+        feature = F.silu(feature)
+        
+        # (Batch_Size, In_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        feature = self.conv_feature(feature)
+        
+        # (1, 1280) -> (1, 1280)
+        time = F.silu(time)
+
+        # (1, 1280) -> (1, Out_Channels)
+        time = self.linear_time(time)
+        
+        # Add width and height dimension to time. 
+        # (Batch_Size, Out_Channels, Height, Width) + (1, Out_Channels, 1, 1) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = feature + time.unsqueeze(-1).unsqueeze(-1)
+        
+        # (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = self.groupnorm_merged(merged)
+        
+        # (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = F.silu(merged)
+        
+        # (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        merged = self.conv_merged(merged)
+        
+        # (Batch_Size, Out_Channels, Height, Width) + (Batch_Size, Out_Channels, Height, Width) -> (Batch_Size, Out_Channels, Height, Width)
+        return merged + self.residual_layer(residue)
     
 class UnetResTime(nn.Module):
     def __init__(self, in_channels, out_channels,n_time):
@@ -126,7 +177,6 @@ class UnetResTime(nn.Module):
         # Create a list of layers for the downsampling block
         # Each block consists of two ResidualConvBlock layers, followed by a MaxPool2d layer for downsampling
         layers = [ResidualConvBlock(in_channels, out_channels), ResidualConvBlock(out_channels, out_channels)]
-        
         # Use the layers to create a sequential model
         self.model = nn.Sequential(*layers)
         self.linear_time = nn.Linear(n_time, out_channels)
@@ -450,32 +500,34 @@ class TimeEmbedding(nn.Module):
         emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
         return emb
 
+class LayoutEmbed(nn.Module):
+    def __init__(self, in_channels, n_feat, h):
+        super(LayoutEmbed, self).__init__()
+        self.h = h
+        self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
+        self.init_conv_layout = ResidualConvBlock(
+            in_channels, n_feat, is_res=True)
+        self.vitembedConcate = ViT(
+            image_size=(n_feat, self.h, self.h), out_channels=4 * n_feat, patch_size=4, concate_mode=True
+        )
 
-# # training without context code
-# def validate(dataloader_val, nn_model):
-#     pass # not ok
-#     # nn_model.eval()  # 设置为评估模式 # OK
-#     # val_loss = [] # OK
-#     # with torch.no_grad():  # 不追踪梯度
-#     #     correct = 0  #OK
-#     #     total = 0   #OK
+    def forward(self, x, layout):
+        x = self.init_conv(x)
+        layout = self.init_conv_layout(layout)
+        vembedConcate = self.vitembedConcate(layout)
+        x = torch.concat((x, vembedConcate), dim=1)
+        return x
 
-#         # aaa=dataloader_val
-#         # for x, layout in dataloader_val: # not ok
-#         #     pass
-#         #     x = x.to(device)
-#         #     layout = layout.to(device)
-#         #     # perturb data
-#         #     noise = torch.randn_like(x)
-#         #     t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
-#         #     x_pert = perturb_input(x, t, noise) # not OK
 
-#         #     # use network to recover noise
-#         #     pred_noise = nn_model(x_pert, t / timesteps, c=None, layout=layout)
-
-#         #     # loss is mean squared error between the predicted and true noise
-#         #     loss = F.mse_loss(pred_noise, noise)
-#         #     val_loss.append(loss.item())
-#         # avg_loss=np.mean(val_loss)
-#         # writer.add_scalar("Loss/val", avg_loss, ep)
-#         # print("val loss:", avg_loss)
+class SwitchSequential(nn.Sequential):
+    def forward(self, x, context=None, time=None,layout=None):
+        for layer in self:
+            if isinstance(layer,LayoutEmbed):
+                x = layer(x, layout)
+            elif isinstance(layer, UnetResTime):
+                x = layer(x, time)
+            elif isinstance(layer, UNET_ResidualBlock):
+                x = layer(x, time)
+            else:
+                x = layer(x)
+        return x

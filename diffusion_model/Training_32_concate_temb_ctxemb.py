@@ -17,34 +17,6 @@ from ViT import *
 import math
 
 
-class SwitchSequential(nn.Sequential):
-    def forward(self, x, context=None, time=None):
-        for layer in self:
-            if isinstance(layer, UnetResTime):
-                x = layer(x, time)
-            else:
-                x = layer(x)
-        return x
-
-
-class LayoutEmbed(nn.Module):
-    def __init__(self, in_channels, n_feat, h):
-        super(LayoutEmbed, self).__init__()
-        self.h = h
-        self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
-        self.init_conv_layout = ResidualConvBlock(
-            in_channels, n_feat, is_res=True)
-        self.vitembedConcate = ViT(
-            image_size=(n_feat, self.h, self.h), out_channels=4 * n_feat, patch_size=4, concate_mode=True
-        )
-
-    def forward(self, x, layout):
-        x = self.init_conv(x)
-        layout = self.init_conv_layout(layout)
-        vembedConcate = self.vitembedConcate(layout)
-        x = torch.concat((x, vembedConcate), dim=1)
-        return x
-
 
 class ContextUnet(nn.Module):
     # cfeat - context features
@@ -65,63 +37,41 @@ class ContextUnet(nn.Module):
         # Initialize the down-sampling path of the U-Net with two levels
 
         # (Batch_Size, 3, Height , Width)->(Batch_Size, (1+4)*n_feat, Height , Width)
-        self.layout_embed = LayoutEmbed(in_channels, n_feat, self.h)
-
+        # self.layout_embed = LayoutEmbed(in_channels, n_feat, self.h)
+        self.final = UNET_OutputLayer(320, 3)
         self.encoders = nn.ModuleList([
+            SwitchSequential(LayoutEmbed(in_channels, n_feat, self.h)),
             # (Batch_Size, (1+4)*n_feat, Height , Width)->(Batch_Size, n_feat, Height/2, Width/2)
-            SwitchSequential(UnetResTime(in_channels=(
+            SwitchSequential(UNET_ResidualBlock(in_channels=(
                 1+4)*n_feat, out_channels=n_feat, n_time=128), nn.MaxPool2d(2)),
             # (Batch_Size, n_feat, Height/2, Width/2)->(Batch_Size, 2*n_feat, Height/4, Width/4)
-            SwitchSequential(UnetResTime(
+            SwitchSequential(UNET_ResidualBlock(
                 in_channels=n_feat, out_channels=2 * n_feat, n_time=128), nn.MaxPool2d(2)),
             # (Batch_Size, 2*n_feat, Height/4, Width/4)->(Batch_Size, 4*n_feat, Height/8, Width/8)
-            SwitchSequential(UnetResTime(
+            SwitchSequential(UNET_ResidualBlock(
                 in_channels=2 * n_feat, out_channels=4 * n_feat, n_time=128), nn.MaxPool2d(2))
         ])
-
         self.bottleneck = SwitchSequential(
-            # (Batch_Size, 4*n_feat, Height/8, Width/8)->(Batch_Size, 4*n_feat, Height/32, Width/32)
-            nn.Sequential(nn.AvgPool2d((4)), nn.GELU()),
-            nn.Sequential(
-                nn.ConvTranspose2d(4 * n_feat, 4 * n_feat, 4, 4),  # up-sample
-                nn.GroupNorm(8, 4 * n_feat),  # normalize
-                nn.ReLU(),
-            )
+            # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
+            UNET_ResidualBlock(4 * n_feat, 4 * n_feat, n_time=128), 
+            
+            # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
+            # UNET_AttentionBlock(8, 160), 
+            
+            # (Batch_Size, 1280, Height / 64, Width / 64) -> (Batch_Size, 1280, Height / 64, Width / 64)
+            UNET_ResidualBlock(4 * n_feat, 4 * n_feat, n_time=128), 
         )
 
         self.decoders = nn.ModuleList([
-            SwitchSequential(UnetResTime(8 * n_feat, 2*n_feat, n_time=128),
+            SwitchSequential(UNET_ResidualBlock(8 * n_feat, 2*n_feat, n_time=128),
                              nn.ConvTranspose2d(2*n_feat, 2*n_feat, 2, 2)),
-            SwitchSequential(UnetResTime(4 * n_feat, 1*n_feat, n_time=128),
+            SwitchSequential(UNET_ResidualBlock(4 * n_feat, 1*n_feat, n_time=128),
                              nn.ConvTranspose2d(1*n_feat, 1*n_feat, 2, 2)),
-            SwitchSequential(UnetResTime(2 * n_feat, 1*n_feat, n_time=128),
+            SwitchSequential(UNET_ResidualBlock(2 * n_feat, 1*n_feat, n_time=128),
                              nn.ConvTranspose2d(1*n_feat, 1*n_feat, 2, 2)),
+            SwitchSequential(UNET_ResidualBlock(6 * n_feat, 5*n_feat, n_time=128))
         ])
 
-        self.to_vec = nn.Sequential(nn.AvgPool2d((4)), nn.GELU())
-
-        self.vitembedConcate = ViT(
-            image_size=(n_feat, self.h, self.h), out_channels=4 * n_feat, patch_size=4, concate_mode=True
-        )
-
-        # Initialize the up-sampling path of the U-Net with three levels
-        self.up0 = nn.Sequential(
-            # nn.ConvTranspose2d(2 * n_feat, 2 * n_feat, self.h//4, self.h//4), # up-sample
-            nn.ConvTranspose2d(4 * n_feat, 4 * n_feat, 4, 4),  # up-sample
-            nn.GroupNorm(8, 4 * n_feat),  # normalize
-            nn.ReLU(),
-        )
-
-        self.out = nn.Sequential(
-            # reduce number of feature maps   #in_channels, out_channels, kernel_size, stride=1, padding=0
-            # nn.Conv2d(2 * n_feat, n_feat, 3, 1, 1),
-
-            nn.Conv2d(5*n_feat+n_feat, n_feat, 3, 1, 1),
-            nn.GroupNorm(8, n_feat),  # normalize
-            nn.ReLU(),
-            # map to same number of channels as input
-            nn.Conv2d(n_feat, self.in_channels, 3, 1, 1),
-        )
 
     def forward(self, x, t, c=None, layout_concate=None):
         """
@@ -130,27 +80,51 @@ class ContextUnet(nn.Module):
         c : (batch, n_classes)    : context label
         """
 
-        x = self.layout_embed(x=x, layout=layout_concate)
+        # x = self.layout_embed(x=x, layout=layout_concate)
         residue = x
         skip_connections = []
         for layers in self.encoders:
-            x = layers(x=x, context=c,time=t)
+            x = layers(x=x, context=c,time=t,layout=layout_concate)
             skip_connections.append(x)
 
-        x = self.bottleneck(x)
+        x = self.bottleneck(x=x, context=c,time=t)
         for layers in self.decoders:
             x = torch.cat((x, skip_connections.pop()), dim=1)
             x = layers(x=x, context=c,time=t)
 
-        out = self.out(torch.cat((residue, x), 1))
+        out = self.final(x)
+        # out = self.out(torch.cat((residue, x), 1))
+        
+        
         return out
 
+
+class UNET_OutputLayer(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.groupnorm = nn.GroupNorm(32, in_channels)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+    
+    def forward(self, x):
+        # x: (Batch_Size, 320, Height / 8, Width / 8)
+
+        # (Batch_Size, 320, Height / 8, Width / 8) -> (Batch_Size, 320, Height / 8, Width / 8)
+        x = self.groupnorm(x)
+        
+        # (Batch_Size, 320, Height / 8, Width / 8) -> (Batch_Size, 320, Height / 8, Width / 8)
+        x = F.silu(x)
+        
+        # (Batch_Size, 320, Height / 8, Width / 8) -> (Batch_Size, 4, Height / 8, Width / 8)
+        x = self.conv(x)
+        
+        # (Batch_Size, 4, Height / 8, Width / 8) 
+        return x
 
 # hyperparameters
 
 
 # diffusion hyperparameters
-timesteps = 50
+timesteps = 1000
 beta1 = 1e-4
 beta2 = 0.02
 
@@ -166,7 +140,7 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 8
+batch_size = 50
 n_epoch = 1000
 lrate = 1e-3
 
@@ -243,6 +217,9 @@ embedding_dim = 128  # 嵌入维度
 time_embedding = TimeEmbedding(embedding_dim).to(device)
 # training without context code
 
+
+parameter_num = get_parameter_number(nn_model)
+print(parameter_num['Total'])
 is_training = True
 
 nn_model.train()
