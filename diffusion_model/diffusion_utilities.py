@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 import pandas as pd
 import math
+from torch.nn import functional as F
 
 
 class ResidualConvBlock(nn.Module):
@@ -116,6 +117,27 @@ class UnetDown(nn.Module):
     def forward(self, x):
         # Pass the input through the sequential model and return the output
         return self.model(x)
+    
+    
+class UnetResTime(nn.Module):
+    def __init__(self, in_channels, out_channels,n_time):
+        super(UnetResTime, self).__init__()
+        
+        # Create a list of layers for the downsampling block
+        # Each block consists of two ResidualConvBlock layers, followed by a MaxPool2d layer for downsampling
+        layers = [ResidualConvBlock(in_channels, out_channels), ResidualConvBlock(out_channels, out_channels)]
+        
+        # Use the layers to create a sequential model
+        self.model = nn.Sequential(*layers)
+        self.linear_time = nn.Linear(n_time, out_channels)
+        
+
+    def forward(self, x:torch.tensor,time:torch.tensor):
+        # Pass the input through the sequential model and return the output
+        time = F.silu(time)
+        time = self.linear_time(time)
+        
+        return self.model(x)+time.unsqueeze(-1).unsqueeze(-1)
 
 class EmbedImage(nn.Module):
     def __init__(self, in_channels, emb_dim):
@@ -415,14 +437,15 @@ transform = transforms.Compose([
 
 
 class TimeEmbedding(nn.Module):
-    def __init__(self, embedding_dim):
+    def __init__(self, embedding_dim,device='cuda'):
         super(TimeEmbedding, self).__init__()
         self.embedding_dim = embedding_dim
+        self.device=device
 
-    def forward(self, t,device='cuda'):
+    def forward(self, t):
         half_dim = self.embedding_dim // 2
         emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, dtype=torch.float32,device=device) * -emb)
+        emb = torch.exp(torch.arange(half_dim, dtype=torch.float32,device=self.device) * -emb)
         emb = t[:, None] * emb[None, :]
         emb = torch.cat((torch.sin(emb), torch.cos(emb)), dim=1)
         return emb
