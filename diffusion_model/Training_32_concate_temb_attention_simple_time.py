@@ -136,7 +136,7 @@ in_channels = 3
 save_dir = './weights/'
 
 # training hyperparameters
-batch_size = 128
+batch_size = 100
 n_epoch = 2000
 lrate = 1e-3
 
@@ -217,7 +217,7 @@ parameter_num = get_parameter_number(nn_model)
 print(parameter_num['Total'])
 
 nn_model.train()
-is_training = False
+is_training = True
 if is_training:
     for ep in range(n_epoch):
         print(f"epoch {ep}")

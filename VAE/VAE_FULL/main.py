@@ -48,16 +48,51 @@ def train(device, dataloader, model: VAE):
         print(f'epoch {i}: loss {epoch_loss} {minute}:{second}')
         torch.save(model.state_dict(), 'model.pth')
 
+def reconstruct(device, dataloader, model):
+    model.eval()
+    batch = next(iter(dataloader))
+    x = batch[0:1, ...].to(device)
+    output = model(x)[0]
+    output = output[0].detach().cpu()
+    output=(output+1)/2
+    # de-normalize
+    # output=inverse_normalize(output)
+    output=torch.clamp(output,0,1)
+
+    input = batch[0].detach().cpu()
+    # de-normalize
+    # input=inverse_normalize(input)
+    # input=torch.clamp(input,0,1)
+
+    combined = torch.cat((output, input), 1)
+    img = ToPILImage()(combined)
+    img.save('work_dirs/reconstruct.jpg')
+
+
+def generate(device, model):
+    model.eval()
+    output = model.sample(device)
+    output = output[0].detach().cpu()
+    output=(output+1)/2
+    # output=inverse_normalize(output)
+    output=torch.clamp(output,0,1)
+    img = ToPILImage()(output)
+    img.save('work_dirs/generate.jpg')
+
 def main():
     device = 'cuda:0'
     img_length=64
-    batch_size=50
+    batch_size=10
     # dataloader = get_dataloader(root='data/parking_generate_data',batch_size=100,img_shape=(img_length,img_length))
     current_work_dir = os.path.dirname(__file__)# 当前文件所在的目录
     dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/celebA/img_align_celeba'),batch_size=batch_size,img_shape=(img_length,img_length))
     model = VAE(device).to(device)
+    
     train(device, dataloader, model)
-    aaa=1
+    model.load_state_dict(torch.load(
+        f"model.pth", map_location=device))
+    reconstruct(device, dataloader, model)
+    generate(device, model)
 
 if __name__ == '__main__':
     main()

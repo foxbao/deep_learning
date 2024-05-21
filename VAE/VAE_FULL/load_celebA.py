@@ -24,7 +24,7 @@ class CelebADataset(Dataset):
             # transforms.CenterCrop(168),
             transforms.Resize(self.img_shape),
             transforms.ToTensor(),
-            # transforms.Normalize((0.5,), (0.5,))
+            transforms.Normalize((0.5,), (0.5,))
         ])
         return pipeline(img)
 
