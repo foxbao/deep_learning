@@ -4,11 +4,12 @@ from encoder import *
 from decoder import *
 
 class VAE(nn.Module):
-    def __init__(self,device,height=64):
+    def __init__(self,device,height):
         super(VAE, self).__init__()
         self.encoder=VAE_Encoder()
         self.decoder=VAE_Decoder()
         self.device=device
+        self.height=height
         self.latent_dim=int(height/8)
         
     def forward(self,x:torch.tensor):
@@ -21,9 +22,10 @@ class VAE(nn.Module):
         return decoded,mean, log_variance
     
     def sample(self, device='cuda'):
-        z = torch.randn(1, self.latent_dim).to(device)
-        x = self.decoder_projection(z)
-        x = torch.reshape(x, (-1, *self.decoder_input_chw))
+        # z = torch.randn(1, self.latent_dim).to(device)
+        # x = self.decoder_projection(z)
+        # x = torch.reshape(x, (-1, *self.decoder_input_chw))
+        z=torch.randn(1,self.latent_dim,self.height/8,self.height/8)
         decoded = self.decoder(x)
         return decoded
         

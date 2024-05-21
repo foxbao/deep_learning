@@ -11,11 +11,12 @@ from utils import *
 from time import time
 import os
 
-writer = SummaryWriter('runs')
-n_epochs = 10
-kl_weight = 0.00025
-lr = 0.005
+
+
+
+
 def loss_fn(y, y_hat, mean, logvar):
+    kl_weight = 0.00025
     # print(mean.shape)
     # print(logvar.shape)
     recons_loss = F.mse_loss(y_hat, y)
@@ -25,6 +26,9 @@ def loss_fn(y, y_hat, mean, logvar):
     return loss
 
 def train(device, dataloader, model: VAE):
+    writer = SummaryWriter('runs')
+    n_epochs = 10
+    lr = 0.005
     optimizer = torch.optim.Adam(model.parameters(), lr)
     begin_time = time()
     # train
@@ -86,7 +90,7 @@ def main():
     # dataloader = get_dataloader(root='data/parking_generate_data',batch_size=100,img_shape=(img_length,img_length))
     current_work_dir = os.path.dirname(__file__)# 当前文件所在的目录
     dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/celebA/img_align_celeba'),batch_size=batch_size,img_shape=(img_length,img_length))
-    model = VAE(device).to(device)
+    model = VAE(device,height=img_length).to(device)
     
     train(device, dataloader, model)
     model.load_state_dict(torch.load(
