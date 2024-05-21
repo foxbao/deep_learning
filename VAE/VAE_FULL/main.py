@@ -9,6 +9,7 @@ from utils import *
 from tqdm import tqdm
 from utils import *
 from time import time
+import os
 
 writer = SummaryWriter('runs')
 n_epochs = 10
@@ -52,7 +53,8 @@ def main():
     img_length=64
     batch_size=50
     # dataloader = get_dataloader(root='data/parking_generate_data',batch_size=100,img_shape=(img_length,img_length))
-    dataloader = get_dataloader(root='/home/baojiali/Downloads/deep_learning/VAE/data/celebA/img_align_celeba',batch_size=batch_size,img_shape=(img_length,img_length))
+    current_work_dir = os.path.dirname(__file__)# 当前文件所在的目录
+    dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/celebA/img_align_celeba'),batch_size=batch_size,img_shape=(img_length,img_length))
     model = VAE(device).to(device)
     train(device, dataloader, model)
     aaa=1
