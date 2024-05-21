@@ -113,9 +113,6 @@ class ContextUnet(nn.Module):
             x = layers(x=x, context=c,time=t)
 
         out = self.final(x)
-        # out = self.out(torch.cat((residue, x), 1))
-        
-        
         return out
 
 
@@ -155,7 +152,7 @@ n_feat = 64  # 64 hidden dimension feature
 n_cfeat = 5  # context vector is of size 5
 # height = 16  # 16x16 image
 # height = 256  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
-height = 32  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
+height = 64  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
 in_channels = 3
 save_dir = './weights/'
 
@@ -361,9 +358,6 @@ for idx, (gt, layout) in enumerate(dataloader_val):
     gt = gt.to(device)
     layout = layout.to(device)
     samples, intermediate = sample_ddpm_context(layout.shape[0], layout)
-    # samples=torch.randn_like(layout)
-    # save_images(layout, nrow=2, name=str(idx) + "_layout.jpg")
-    # save_images(gt, nrow=2, name=str(idx) + "_gt.jpg")
 
     save_layout_sample_gt(
         layouts=layout, samples=samples, gts=gt, name=str(idx) + "_triple.jpg"

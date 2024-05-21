@@ -221,10 +221,10 @@ class UNET_ResidualBlock(nn.Module):
         self.groupnorm_feature = nn.GroupNorm(32, in_channels)
         self.conv_feature = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
         self.linear_time = nn.Linear(n_time, out_channels)
-
+        self.timeembed1 = EmbedFC(1, out_channels)
         self.groupnorm_merged = nn.GroupNorm(32, out_channels)
         self.conv_merged = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-
+        self.n_time=n_time
         if in_channels == out_channels:
             self.residual_layer = nn.Identity()
         else:
@@ -247,7 +247,7 @@ class UNET_ResidualBlock(nn.Module):
         
         # (1, 1280) -> (1, 1280)
         time = F.silu(time)
-
+        time = time.view(-1, self.n_time)
         # (1, 1280) -> (1, Out_Channels)
         time = self.linear_time(time)
         
@@ -621,8 +621,8 @@ class SwitchSequential(nn.Sequential):
         for layer in self:
             if isinstance(layer,LayoutEmbed):
                 x = layer(x, layout)
-            elif isinstance(layer, UnetResTime):
-                x = layer(x, time)
+            # elif isinstance(layer, UnetResTime):
+            #     x = layer(x, time)
             elif isinstance(layer, UNET_ResidualBlock):
                 x = layer(x, time)
             elif isinstance(layer, UNET_AttentionBlock):
