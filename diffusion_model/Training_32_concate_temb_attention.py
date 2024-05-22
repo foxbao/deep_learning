@@ -247,7 +247,7 @@ if is_training:
         optim.param_groups[0]["lr"] = lrate * (1 - ep / n_epoch)
 
         pbar = tqdm(dataloader, mininterval=2)
-
+        tr_loss = 0
         for x, layout in pbar:  # x: images
             optim.zero_grad()
             x = x.to(device)
@@ -267,10 +267,13 @@ if is_training:
 
             # loss is mean squared error between the predicted and true noise
             loss = F.mse_loss(pred_noise, noise)
+            tr_loss += loss.item()
             loss.backward()
             optim.step()
-        writer.add_scalar("Loss/train", loss.item(), ep)
+        epoch_loss = tr_loss / len(dataloader)
+        writer.add_scalar("Loss/train", epoch_loss, ep)
         print("loss:", loss.item())
+        print("epoch_loss:", epoch_loss)
         # save model periodically
         if ep % 100 == 0 or ep == int(n_epoch - 1):
             if not os.path.exists(save_dir):
