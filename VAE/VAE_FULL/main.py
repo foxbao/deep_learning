@@ -25,14 +25,14 @@ def loss_fn(y, y_hat, mean, logvar):
     loss = recons_loss + kl_loss * kl_weight
     return loss
 
-def train(device, dataloader, model: VAE):
+def train(device, dataloader, model: VAE,n_epoch=50):
     writer = SummaryWriter('runs')
-    n_epochs = 10
+    n_epoch = n_epoch
     lr = 0.005
     optimizer = torch.optim.Adam(model.parameters(), lr)
     begin_time = time()
     # train
-    for i in range(n_epochs):
+    for i in range(n_epoch):
         pbar = tqdm(dataloader, mininterval=2)
         tr_loss=0
         for x in pbar:  # x: images
@@ -50,7 +50,8 @@ def train(device, dataloader, model: VAE):
         minute = int(training_time // 60)
         second = int(training_time % 60)
         print(f'epoch {i}: loss {epoch_loss} {minute}:{second}')
-        torch.save(model.state_dict(), 'model.pth')
+        if i % 10 == 0 or i == int(n_epoch - 1):
+            torch.save(model.state_dict(), f"model_{i}.pth")
 
 def reconstruct(device, dataloader, model):
     model.eval()
@@ -64,6 +65,7 @@ def reconstruct(device, dataloader, model):
     output=torch.clamp(output,0,1)
 
     input = batch[0].detach().cpu()
+    input=(input+1)/2
     # de-normalize
     # input=inverse_normalize(input)
     # input=torch.clamp(input,0,1)
@@ -85,16 +87,18 @@ def generate(device, model):
 
 def main():
     device = 'cuda:0'
-    img_length=64
-    batch_size=10
+    img_length=128
+    batch_size=32
     # dataloader = get_dataloader(root='data/parking_generate_data',batch_size=100,img_shape=(img_length,img_length))
     current_work_dir = os.path.dirname(__file__)# 当前文件所在的目录
-    dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/celebA/img_align_celeba'),batch_size=batch_size,img_shape=(img_length,img_length))
+    # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/celebA/img_align_celeba'),batch_size=batch_size,img_shape=(img_length,img_length))
+    dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
+
     model = VAE(device,height=img_length).to(device)
-    
-    train(device, dataloader, model)
+    n_epoch=50
+    train(device, dataloader, model,n_epoch)
     model.load_state_dict(torch.load(
-        f"model.pth", map_location=device))
+        f"model_{n_epoch-1}.pth", map_location=device))
     reconstruct(device, dataloader, model)
     generate(device, model)
 

@@ -228,6 +228,8 @@ def perturb_input(x, t, noise):
 parameter_num = get_parameter_number(nn_model)
 print(parameter_num['Total'])
 
+nn_model.load_state_dict(torch.load(
+    f"{save_dir}/model_{1999}.pth", map_location=device))
 nn_model.train()
 is_training = True
 if is_training:
