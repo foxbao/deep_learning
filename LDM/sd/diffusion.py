@@ -21,7 +21,7 @@ class TimeEmbedding(nn.Module):
 
 class Unet(nn.Module):
     # cfeat - context features
-    def __init__(self, in_channels, n_feat=256, n_cfeat=10, height=28, time_dim=128,device='cuda'):
+    def __init__(self, in_channels, layout_channels,n_feat=256, n_cfeat=10, height=28, time_dim=128,device='cuda'):
         super(Unet, self).__init__()
 
         # number of input channels, number of intermediate feature maps and number of classes
@@ -35,14 +35,14 @@ class Unet(nn.Module):
         # Initialize the initial convolutional layer
         self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
         self.init_conv_layout = ResidualConvBlock(
-            in_channels, n_feat, is_res=True)
+            layout_channels, n_feat, is_res=True)
         # Initialize the down-sampling path of the U-Net with two levels
 
         # (Batch_Size, 3, Height , Width)->(Batch_Size, (1+4)*n_feat, Height , Width)
         # self.layout_embed = LayoutEmbed(in_channels, n_feat, self.h)
-        self.final = UNET_OutputLayer((1+4)*n_feat, 3)
+        self.final = UNET_OutputLayer((1+4)*n_feat, in_channels)
         self.encoders = nn.ModuleList([
-            SwitchSequential(LayoutEmbed(in_channels, n_feat, self.h)),
+            SwitchSequential(LayoutEmbed(in_channels, layout_channels,n_feat, self.h)),
             # (Batch_Size, (1+4)*n_feat, Height , Width)->(Batch_Size, n_feat, Height, Width)
             SwitchSequential(UNET_ResidualBlock((1+4)*n_feat, n_feat, time_dim),
                              nn.Conv2d(1 * n_feat, 1 * n_feat, kernel_size=3, stride=2, padding=1)),
@@ -401,12 +401,12 @@ class SwitchSequential(nn.Sequential):
 
 
 class LayoutEmbed(nn.Module):
-    def __init__(self, in_channels, n_feat, h):
+    def __init__(self, in_channels,layout_in_channels, n_feat, h):
         super(LayoutEmbed, self).__init__()
         self.h = h
         self.init_conv = ResidualConvBlock(in_channels, n_feat, is_res=True)
         self.init_conv_layout = ResidualConvBlock(
-            in_channels, n_feat, is_res=True)
+            layout_in_channels, n_feat, is_res=True)
         self.vitembedConcate = ViT(
             image_size=(n_feat, self.h, self.h), out_channels=4 * n_feat, patch_size=4, concate_mode=True
         )
@@ -419,10 +419,10 @@ class LayoutEmbed(nn.Module):
         return x
     
 class Diffusion(nn.Module):
-    def __init__(self,in_channels, n_feat=256, n_cfeat=10, height=28, time_dim=320):
+    def __init__(self,in_channels, layout_channels,n_feat=256, n_cfeat=10, height=28, time_dim=320):
         super(Diffusion, self).__init__()
         self.time_embedding = TimeEmbedding(time_dim)
-        self.unet=Unet(in_channels, n_feat, n_cfeat, height, time_dim)
+        self.unet=Unet(in_channels, layout_channels,n_feat, n_cfeat, height, time_dim)
         
     def forward(self, latent, layout, context,time):
         time_emb = self.time_embedding(time/1.0)

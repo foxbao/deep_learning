@@ -10,6 +10,8 @@ from tqdm import tqdm
 from utils import *
 from time import time
 import os
+from diffusion_utilities import CustomDataset3,get_transform
+from torch.utils.data import DataLoader
 
 def loss_fn(y, y_hat, mean, logvar):
     kl_weight = 0.00025
@@ -31,7 +33,7 @@ def train(device, dataloader, model: VAE,n_epoch=50):
     for i in range(n_epoch):
         pbar = tqdm(dataloader, mininterval=2)
         tr_loss=0
-        for x in pbar:  # x: images
+        for x, layout in pbar:  # x: images
             x = x.to(device)
             y_hat, mean, logvar = model(x)
             loss = loss_fn(x, y_hat, mean, logvar)
@@ -83,18 +85,32 @@ def generate(device, model):
 
 def main():
     device = 'cuda:0'
-    img_length=256
+    img_length=128
     batch_size=32
-    # dataloader = get_dataloader(root='data/parking_generate_data',batch_size=100,img_shape=(img_length,img_length))
-    current_work_dir = os.path.dirname(__file__)# 当前文件所在的目录
-    # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/celebA/img_align_celeba'),batch_size=batch_size,img_shape=(img_length,img_length))
-    dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
+    transform=get_transform(img_length)
+    transform_layout=get_transform(int(img_length/8))
+    home_dir = os.path.expanduser('~')
+    dataset = CustomDataset3(
+        img_dir=os.path.join(
+            home_dir, "Downloads/parking2023/baojiali/park_generate/parking_generate_data"),
+        img_names="data/parking_generate_data/data.txt",
+        layout_dir=os.path.join(
+            home_dir, "Downloads/parking2023/baojiali/park_generate/parking_layout_data"),
+        layout_names="data/parking_layout_data/data.txt",
+        transform=transform,
+        transform_layout=transform_layout,
+        null_context=False,
+    )
+    dataloader = DataLoader(dataset, batch_size=batch_size,
+                            shuffle=True, num_workers=1)
+    
+    # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
 
     model = VAE(device,height=img_length).to(device)
-    n_epoch=50
-    # train(device, dataloader, model,n_epoch)
+    n_epoch=150
+    train(device, dataloader, model,n_epoch)
     model.load_state_dict(torch.load(
-        f"model_{150}.pth", map_location=device))
+        f"model_{n_epoch-1}.pth", map_location=device))
     reconstruct(device, dataloader, model)
     generate(device, model)
 

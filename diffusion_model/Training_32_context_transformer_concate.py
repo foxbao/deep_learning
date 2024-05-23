@@ -249,7 +249,7 @@ def perturb_input(x, t, noise):
 nn_model.train()
 
 
-is_training = True
+is_training = False
 if is_training:
     for ep in range(n_epoch):
         print(f"epoch {ep}")
@@ -358,7 +358,7 @@ def sample_ddpm(n_sample, save_rate=20):
 # nn_model.load_state_dict(torch.load(
 #     f"{save_dir}/model_{1500}.pth", map_location=device))
 nn_model.load_state_dict(torch.load(
-    f"{save_dir}/good/model_830_32_vit_concate.pth", map_location=device))
+    f"{save_dir}/model_{300}.pth", map_location=device))
 nn_model.eval()
 print("Loaded in Model")
 
