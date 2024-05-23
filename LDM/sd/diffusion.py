@@ -92,6 +92,9 @@ class Unet(nn.Module):
             c = torch.zeros(x.shape[0], 77, 768).to(self.device)
             pass
 
+        if layout_concate is None:
+            layout_concate = torch.zeros(x.shape).to(self.device)
+
         # x = self.layout_embed(x=x, layout=layout_concate)
         residue = x
         skip_connections = []

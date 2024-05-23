@@ -16,75 +16,7 @@ from utils import *
 from ViT import *
 import math
 from diffusion import Unet,Diffusion
-
-def perturb_input(x, t, ab_t,noise):
-    return ab_t.sqrt()[t, None, None, None] * x + (1 - ab_t[t, None, None, None]) * noise
-
-# helper function; removes the predicted noise (but adds some noise back in to avoid collapse)
-
-
-def denoise_add_noise(x, t, b_t,a_t,ab_t,pred_noise, z=None):
-    if z is None:
-        z = torch.randn_like(x)
-    noise = b_t.sqrt()[t] * z
-    mean = (x - pred_noise * ((1 - a_t[t]) /
-            (1 - ab_t[t]).sqrt())) / a_t[t].sqrt()
-    return mean + noise
-
-# sample using standard algorithm
-
-
-@torch.no_grad()
-def sample_ddpm_context(n_sample, nn_model,in_channels,height,timesteps,layout,time_embedding,device='cuda',save_rate=20):
-    # x_T ~ N(0, 1), sample initial noise
-    samples = torch.randn(n_sample, in_channels, height, height).to(device)
-
-    # array to keep track of generated steps for plotting
-    intermediate = []
-    for i in range(timesteps, 0, -1):
-        print(f"sampling timestep {i:3d}", end="\r")
-
-        # reshape time tensor
-        # t = torch.tensor([i])[:, None, None, None].to(device)
-        t = torch.tensor([i/1.0]).to(device)
-        time_emb = time_embedding(t)
-        # sample some random noise to inject back in. For i = 1, don't add back in noise
-        z = torch.randn_like(samples) if i > 1 else 0
-
-        # predict noise e_(x_t,t, ctx)
-        eps = nn_model(samples, time_emb, c=None, layout_concate=layout)
-        samples = denoise_add_noise(samples, i, eps, z)
-        if i % save_rate == 0 or i == timesteps or i < 8:
-            intermediate.append(samples.detach().cpu().numpy())
-
-    intermediate = np.stack(intermediate)
-    return samples, intermediate
-
-
-@torch.no_grad()
-def sample_ddpm(n_sample, nn_model,in_channels,height,timesteps,device='cuda',save_rate=20):
-    # x_T ~ N(0, 1), sample initial noise
-    samples = torch.randn(n_sample, in_channels, height, height).to(device)
-
-    # array to keep track of generated steps for plotting
-    intermediate = []
-    for i in range(timesteps, 0, -1):
-        print(f'sampling timestep {i:3d}', end='\r')
-
-        # reshape time tensor
-        t = torch.tensor([i])[:, None, None, None].to(device)
-
-        # sample some random noise to inject back in. For i = 1, don't add back in noise
-        z = torch.randn_like(samples) if i > 1 else 0
-
-        eps = nn_model(samples, t)    # predict noise e_(x_t,t)
-        samples = denoise_add_noise(samples, i, eps, z)
-        if i % save_rate == 0 or i == timesteps or i < 8:
-            intermediate.append(samples.detach().cpu().numpy())
-
-    intermediate = np.stack(intermediate)
-    return samples, intermediate
-
+from ddpm import DDPMSampler
 
 
 def main():
@@ -111,26 +43,28 @@ def main():
     n_epoch = 2000
     lrate = 1e-3
 
+    sampler=DDPMSampler(beta2,beta1,timesteps,device)
 
     # construct DDPM noise schedule
-    b_t = (beta2 - beta1) * torch.linspace(0, 1,
-                                        timesteps + 1, device=device) + beta1
-    a_t = 1 - b_t
-    ab_t = torch.cumsum(a_t.log(), dim=0).exp()
-    ab_t[0] = 1
+    # b_t = (beta2 - beta1) * torch.linspace(0, 1,
+    #                                     timesteps + 1, device=device) + beta1
+    # a_t = 1 - b_t
+    # ab_t = torch.cumsum(a_t.log(), dim=0).exp()
+    # ab_t[0] = 1
 
     writer = SummaryWriter('runs')
     # construct model
-    nn_model = Diffusion(in_channels=in_channels, n_feat=n_feat,
+    nn_model = Diffusion(in_channels=in_channels,layout_channels=in_channels, n_feat=n_feat,
                         n_cfeat=n_cfeat, height=height).to(device)
     
 
-    transform_size = height
-    transform = transforms.Compose([
-        transforms.Resize([transform_size, transform_size]),
-        transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
-        transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
-    ])
+    # transform_size = height
+    # transform = transforms.Compose([
+    #     transforms.Resize([transform_size, transform_size]),
+    #     transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
+    #     transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
+    # ])
+    transform = get_transform(height)
 
     home_dir = os.path.expanduser('~')
     dataset = CustomDataset3(
@@ -141,6 +75,7 @@ def main():
             home_dir, "Downloads/parking2023/baojiali/park_generate/parking_layout_data"),
         layout_names="data/parking_layout_data/data.txt",
         transform=transform,
+        transform_layout=transform,
         null_context=False,
     )
 
@@ -155,6 +90,7 @@ def main():
             home_dir, "Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
         layout_names="data/val_parking_layout_data/data.txt",
         transform=transform,
+        transform_layout=transform,
         null_context=False,
     )
 
@@ -194,7 +130,8 @@ def main():
                 # perturb data
                 noise = torch.randn_like(x)
                 t = torch.randint(1, timesteps + 1, (x.shape[0],)).to(device)
-                x_pert = perturb_input(x, t, ab_t,noise)
+                x_pert = sampler.perturb_input(x, t, noise)
+                # x_pert = perturb_input(x, t, ab_t,noise)
 
                 # use network to recover noise
                 pred_noise = nn_model(
@@ -229,7 +166,7 @@ def main():
     for idx, (gt, layout) in enumerate(dataloader_val):
         gt = gt.to(device)
         layout = layout.to(device)
-        samples, intermediate = sample_ddpm_context(layout.shape[0], layout)
+        samples, intermediate =sampler.sample_ddpm_context(layout.shape[0], nn_model,in_channels,height,timesteps,layout,device='cuda',save_rate=20)
 
         save_layout_sample_gt(
             layouts=layout, samples=samples, gts=gt, name=str(idx) + "_triple.jpg"
