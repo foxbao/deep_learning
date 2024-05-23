@@ -45,25 +45,11 @@ def main():
 
     sampler=DDPMSampler(beta2,beta1,timesteps,device)
 
-    # construct DDPM noise schedule
-    # b_t = (beta2 - beta1) * torch.linspace(0, 1,
-    #                                     timesteps + 1, device=device) + beta1
-    # a_t = 1 - b_t
-    # ab_t = torch.cumsum(a_t.log(), dim=0).exp()
-    # ab_t[0] = 1
-
     writer = SummaryWriter('runs')
     # construct model
     nn_model = Diffusion(in_channels=in_channels,layout_channels=in_channels, n_feat=n_feat,
                         n_cfeat=n_cfeat, height=height).to(device)
     
-
-    # transform_size = height
-    # transform = transforms.Compose([
-    #     transforms.Resize([transform_size, transform_size]),
-    #     transforms.ToTensor(),                # from [0,255] to range [0.0,1.0]
-    #     transforms.Normalize((0.5,), (0.5,)),  # range [-1,1]
-    # ])
     transform = get_transform(height)
 
     home_dir = os.path.expanduser('~')

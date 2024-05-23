@@ -74,7 +74,7 @@ def main():
                         else torch.device('cpu'))
     img_length = 256
     batch_size = 32
-    n_epoch = 2000
+    n_epoch = 100
     
     sampler=DDPMSampler(beta2,beta1,timesteps,device)
     
@@ -96,6 +96,23 @@ def main():
     )
     dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=True, num_workers=1)
+    
+    val_dataset = CustomDataset3(
+        img_dir=os.path.join(
+            home_dir, "Downloads/parking2023/baojiali/park_generate/val_parking_generate_data"),
+        img_names="data/val_parking_generate_data/data.txt",
+        layout_dir=os.path.join(
+            home_dir, "Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
+        layout_names="data/val_parking_layout_data/data.txt",
+        transform=transform,
+        transform_layout=transform_layout,
+        null_context=False,
+    )
+
+    val_batch_size = 4
+    dataloader_val = DataLoader(
+        val_dataset, batch_size=val_batch_size, shuffle=False, num_workers=1
+    )
 
     model_VAE = VAE(device, height=img_length).to(device)
     model_VAE.load_state_dict(torch.load(
@@ -140,37 +157,58 @@ def main():
             layout = layout.to(device)
             encoder_noise = torch.randn(size=(b,4,int(latent_height),int(latent_height)),device=device)
             latent, mean, log_variance=encoder_VAE(x,encoder_noise)
-            latent_cpu=latent.detach().cpu().numpy()
+            # latent_cpu=latent.detach().cpu().numpy()
             # latents.append(latent_cpu)
             
-            # # perturb data
-            # noise = torch.randn_like(latent)
-            # t = torch.randint(1, timesteps + 1, (latent.shape[0],)).to(device)
-            # x_pert = sampler.perturb_input(latent, t, noise)
+            # perturb data
+            noise = torch.randn_like(latent)
+            t = torch.randint(1, timesteps + 1, (latent.shape[0],)).to(device)
+            x_pert = sampler.perturb_input(latent, t, noise)
 
-            # # use network to recover noise
-            # pred_noise = nn_model(
-            #     latent=x_pert, layout=layout, context=None, time=t/1.0)
+            # use network to recover noise
+            pred_noise = nn_model(
+                latent=x_pert, layout=layout, context=None, time=t/1.0)
 
-            # # loss is mean squared error between the predicted and true noise
-            # loss = F.mse_loss(pred_noise, noise)
-            # tr_loss += loss.item()
-            # loss.backward()
-            # optim.step()
-        # epoch_loss = tr_loss / len(dataloader)
-        # writer.add_scalar("Loss/train", epoch_loss, ep)
-        # print("loss:", loss.item())
-        # print("epoch_loss:", epoch_loss)
-        # # save model periodically
-        # if ep % 10 == 0 or ep == int(n_epoch - 1):
-        #     if not os.path.exists(save_dir):
-        #         os.mkdir(save_dir)
-        #     torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
-        #     print("saved model at " + save_dir + f"model_{ep}.pth")
+            # loss is mean squared error between the predicted and true noise
+            loss = F.mse_loss(pred_noise, noise)
+            tr_loss += loss.item()
+            loss.backward()
+            optim.step()
+        epoch_loss = tr_loss / len(dataloader)
+        writer.add_scalar("Loss/train", epoch_loss, ep)
+        print("loss:", loss.item())
+        print("epoch_loss:", epoch_loss)
+        # save model periodically
+        if ep % 10 == 0 or ep == int(n_epoch - 1):
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
+            print("saved model at " + save_dir + f"model_{ep}.pth")
 
+    nn_model.load_state_dict(torch.load(
+        f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
+    nn_model.eval()
+    print("Loaded in Model")
 
     # load the encoder of VAE
+    
+    
+    for idx, (gt, layout) in enumerate(dataloader_val):
+        gt = gt.to(device)
+        layout = layout.to(device)
+        
+        encoder_noise = torch.randn(size=(b,4,int(latent_height),int(latent_height)),device=device)
+        latent, mean, log_variance=encoder_VAE(x,encoder_noise)
+        
+        output = encoder_VAE.sample(device)
+        
+        
+        # samples, intermediate =sampler.sample_ddpm_context(layout.shape[0], nn_model,in_channels,height,timesteps,layout,device='cuda',save_rate=20)
 
+
+        # save_layout_sample_gt(
+        #     layouts=layout, samples=samples, gts=gt, name=str(idx) + "_triple.jpg"
+        # )
     # encode the image to latent space
 
     # add noise to image
