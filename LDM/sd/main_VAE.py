@@ -49,12 +49,12 @@ def train(device, dataloader, model: VAE,n_epoch=50):
         second = int(training_time % 60)
         print(f'epoch {i}: loss {epoch_loss} {minute}:{second}')
         if i % 10 == 0 or i == int(n_epoch - 1):
-            torch.save(model.state_dict(), f"model_{i}.pth")
+            torch.save(model.state_dict(), f"weights/model_VAE_{i}.pth")
 
 def reconstruct(device, dataloader, model):
     model.eval()
     batch = next(iter(dataloader))
-    x = batch[0:1, ...].to(device)
+    x = batch[0].to(device)
     output = model(x)[0]
     output = output[0].detach().cpu()
     output=(output+1)/2
@@ -62,7 +62,7 @@ def reconstruct(device, dataloader, model):
     # output=inverse_normalize(output)
     output=torch.clamp(output,0,1)
 
-    input = batch[0].detach().cpu()
+    input = batch[0][0].detach().cpu()
     input=(input+1)/2
     # de-normalize
     # input=inverse_normalize(input)
@@ -73,7 +73,7 @@ def reconstruct(device, dataloader, model):
     img.save('work_dirs/reconstruct.jpg')
 
 
-def generate(device, model):
+def generate(device, model:VAE):
     model.eval()
     output = model.sample(device)
     output = output[0].detach().cpu()
@@ -85,8 +85,8 @@ def generate(device, model):
 
 def main():
     device = 'cuda:0'
-    img_length=128
-    batch_size=32
+    img_length=256
+    batch_size=4
     transform=get_transform(img_length)
     transform_layout=get_transform(int(img_length/8))
     home_dir = os.path.expanduser('~')
@@ -107,10 +107,10 @@ def main():
     # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
 
     model = VAE(device,height=img_length).to(device)
-    n_epoch=150
-    train(device, dataloader, model,n_epoch)
+    n_epoch=200
+    # train(device, dataloader, model,n_epoch)
     model.load_state_dict(torch.load(
-        f"model_{n_epoch-1}.pth", map_location=device))
+        f"weights/model_VAE_{n_epoch-1}.pth", map_location=device))
     reconstruct(device, dataloader, model)
     generate(device, model)
 
