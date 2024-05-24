@@ -31,9 +31,9 @@ from ddpm import DDPMSampler
 #             b,c,h,w=x.shape
 #             layout = layout.to(device)
 #             encoder_noise = torch.randn(size=(b,4,int(height),int(height)),device=device)
-            
+
 #             latent, mean, log_variance=encoder_VAE(x,encoder_noise)
-            
+
 #             # perturb data
 #             noise = torch.randn_like(latent)
 #             t = torch.randint(1, timesteps + 1, (latent.shape[0],)).to(device)
@@ -61,27 +61,29 @@ from ddpm import DDPMSampler
 
 
 def main():
-    
+
     # hyperparameters
 
     # diffusion hyperparameters
     timesteps = 500
     beta1 = 1e-4
     beta2 = 0.02
-    
+
     # network hyperparameters
     device = torch.device("cuda:0" if torch.cuda.is_available()
-                        else torch.device('cpu'))
+                          else torch.device('cpu'))
     img_length = 256
+    img_length = 256
+    layout_length = int(img_length/8)
     batch_size = 32
     n_epoch = 100
-    
-    sampler=DDPMSampler(beta2,beta1,timesteps,device)
-    
+
+    sampler = DDPMSampler(beta2, beta1, timesteps, device)
+
     save_dir = './weights/'
     transform = get_transform(img_length)
-    transform_layout=get_transform(int(img_length/8))
-    
+    transform_layout = get_transform(layout_length)
+
     home_dir = os.path.expanduser('~')
     dataset = CustomDataset3(
         img_dir=os.path.join(
@@ -96,7 +98,7 @@ def main():
     )
     dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=True, num_workers=1)
-    
+
     val_dataset = CustomDataset3(
         img_dir=os.path.join(
             home_dir, "Downloads/parking2023/baojiali/park_generate/val_parking_generate_data"),
@@ -121,28 +123,29 @@ def main():
     decoder_VAE = model_VAE.decoder
 
     latent_in_channels = 4
-    layout_in_channels=3
+    layout_in_channels = 3
     n_feat = 64  # 64 hidden dimension feature
     n_cfeat = 5  # context vector is of size 5
-    latent_height = 32  # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
-    
+    # 16x16 image, don't forget to change transform_size in diffusion_utilities.py
+    latent_height = 32
+
     writer = SummaryWriter('runs')
-    nn_model = Diffusion(latent_in_channels,layout_in_channels,n_feat,
-                         n_cfeat,latent_height).to(device)
+    nn_model = Diffusion(latent_in_channels, layout_in_channels, n_feat,
+                         n_cfeat, latent_height).to(device)
     lrate = 1e-3
-    
+
     for name, param in encoder_VAE.named_parameters():
         param.requires_grad = False
-        
+
     for name, param in decoder_VAE.named_parameters():
         param.requires_grad = False
-        
+
     encoder_VAE.eval()
     decoder_VAE.eval()
     nn_model.train()
     optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
-    latents=[]
+    latents = []
     for ep in range(n_epoch):
         print(f"epoch {ep}")
         # linearly decay learning rate
@@ -153,13 +156,16 @@ def main():
         for x, layout in pbar:  # x: images
             optim.zero_grad()
             x = x.to(device)
-            b,c,h,w=x.shape
+            b, c, h, w = x.shape
             layout = layout.to(device)
-            encoder_noise = torch.randn(size=(b,4,int(latent_height),int(latent_height)),device=device)
+            encoder_noise=torch.zeros(size=(b, 4, int(latent_height), int(latent_height)), device=device)
+            # encoder_noise = torch.randn(
+            #     size=(b, 4, int(latent_height), int(latent_height)), device=device)
+            # latent = x
             latent, mean, log_variance=encoder_VAE(x,encoder_noise)
             # latent_cpu=latent.detach().cpu().numpy()
             # latents.append(latent_cpu)
-            
+
             # perturb data
             noise = torch.randn_like(latent)
             t = torch.randint(1, timesteps + 1, (latent.shape[0],)).to(device)
@@ -191,20 +197,18 @@ def main():
     print("Loaded in Model")
 
     # load the encoder of VAE
-    
-    
+
     for idx, (gt, layout) in enumerate(dataloader_val):
         gt = gt.to(device)
         layout = layout.to(device)
-        
-        encoder_noise = torch.randn(size=(b,4,int(latent_height),int(latent_height)),device=device)
-        latent, mean, log_variance=encoder_VAE(x,encoder_noise)
-        
-        output = encoder_VAE.sample(device)
-        
-        
-        # samples, intermediate =sampler.sample_ddpm_context(layout.shape[0], nn_model,in_channels,height,timesteps,layout,device='cuda',save_rate=20)
 
+        encoder_noise = torch.randn(
+            size=(b, 4, int(latent_height), int(latent_height)), device=device)
+        latent, mean, log_variance = encoder_VAE(x, encoder_noise)
+
+        output = encoder_VAE.sample(device)
+
+        # samples, intermediate =sampler.sample_ddpm_context(layout.shape[0], nn_model,in_channels,height,timesteps,layout,device='cuda',save_rate=20)
 
         # save_layout_sample_gt(
         #     layouts=layout, samples=samples, gts=gt, name=str(idx) + "_triple.jpg"
