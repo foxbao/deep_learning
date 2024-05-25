@@ -88,7 +88,7 @@ class Unet(nn.Module):
         t : (batch, n_cfeat)      : time step
         c : (batch, n_classes)    : context label
         """
-        if not c:
+        if c is None:
             c = torch.zeros(x.shape[0], 77, 768).to(self.device)
             pass
 

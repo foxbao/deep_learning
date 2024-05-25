@@ -482,8 +482,10 @@ class CustomDatasetVal(Dataset):
         return self.sprites_shape, self.slabel_shape
 
 class CustomDataset3(Dataset):
-    def __init__(self,img_dir,img_names,layout_dir,layout_names,transform,transform_layout,null_context=False) -> None:
+    def __init__(self,img_dir,img_names,layout_dir,layout_names,text_dir,text_names,transform,transform_layout,null_context=False,text_context=False) -> None:
         super().__init__()
+        self.null_context = null_context
+        self.text_context=text_context
         self.img_dir =img_dir 
         df = pd.read_csv(img_names, header=None,delimiter='\t', names=["Filename"])
         self.img_names= df["Filename"].values
@@ -491,9 +493,13 @@ class CustomDataset3(Dataset):
         self.layout_dir=layout_dir
         df2 = pd.read_csv(layout_names, header=None,delimiter='\t', names=["Filename"])
         self.layout_names=df2["Filename"].values
+        
+        self.text_dir=text_dir
+        df3 = pd.read_csv(text_names, header=None,delimiter='\t', names=["Filename"])
+        self.text_names=df3["Filename"].values
         self.transform=transform
         self.transform_layout=transform_layout
-        self.null_context = null_context
+
         
     # Return the number of images in the dataset
     def __len__(self):
@@ -505,11 +511,18 @@ class CustomDataset3(Dataset):
         if self.transform:
             image = self.transform(Image.open(os.path.join(self.img_dir, self.img_names[idx])))
             # plt.imshow(image)
-            if self.null_context:
-                layout=torch.tensor(0).to(torch.int64)
-            else:
-                layout = self.transform_layout(Image.open(os.path.join(self.layout_dir, self.layout_names[idx])))
-        return (image,layout)
+        if self.null_context:
+            layout=torch.tensor(0).to(torch.int64)
+        else:
+            layout = self.transform_layout(Image.open(os.path.join(self.layout_dir, self.layout_names[idx])))
+        
+        if self.text_context:
+            with open(os.path.join(self.text_dir, self.text_names[idx]), "r", encoding="utf-8") as file:
+                text = file.read()
+        else:
+            text=""
+        
+        return (image,layout,text)
 
     def getshapes(self):
         # return shapes of data and labels

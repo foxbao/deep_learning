@@ -107,7 +107,7 @@ def main():
     # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
 
     model = VAE(device,height=img_length).to(device)
-    n_epoch=200
+    n_epoch=500
     # train(device, dataloader, model,n_epoch)
     model.load_state_dict(torch.load(
         f"weights/model_VAE_{n_epoch-1}.pth", map_location=device))

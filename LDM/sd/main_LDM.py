@@ -10,6 +10,8 @@ import os
 from torch.utils.data import DataLoader
 from diffusion_utilities import CustomDataset3, get_transform,save_layout_sample_gt
 from VAE import VAE, VAE_Encoder, VAE_Decoder
+import model_loader
+from transformers import CLIPTokenizer
 from diffusion import Diffusion
 from ddpm import DDPMSampler
 
@@ -45,9 +47,12 @@ def main():
         layout_dir=os.path.join(
             home_dir, "Downloads/parking2023/baojiali/park_generate/parking_layout_data"),
         layout_names="data/parking_layout_data/data.txt",
+        text_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/parking_description_data"),
+        text_names="data/parking_description_data/data.txt",
         transform=transform,
         transform_layout=transform_layout,
         null_context=False,
+        text_context=True
     )
     dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=True, num_workers=1)
@@ -59,9 +64,12 @@ def main():
         layout_dir=os.path.join(
             home_dir, "Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
         layout_names="data/val_parking_layout_data/data.txt",
+        text_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
+        text_names="data/val_parking_description_data/data.txt",
         transform=transform,
         transform_layout=transform_layout,
         null_context=False,
+        text_context=True
     )
 
     val_batch_size = 4
@@ -86,6 +94,15 @@ def main():
     nn_model = Diffusion(latent_in_channels, layout_in_channels, n_feat,
                          n_cfeat, latent_height).to(device)
     lrate = 1e-3
+    
+    tokenizer = CLIPTokenizer("data/vocab.json", merges_file="data/merges.txt")
+    model_file = "data/v1-5-pruned-emaonly.ckpt"
+    models = model_loader.preload_models_from_standard_weights(model_file, device)
+    # model_file = "../data/v1-5-pruned-emaonly.ckpt"
+    # models = model_loader.preload_models_from_standard_weights(model_file, device)
+
+    clip = models["clip"]
+    clip.to(device)
 
     for name, param in encoder_VAE.named_parameters():
         param.requires_grad = False
@@ -99,7 +116,7 @@ def main():
     optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
     latents = []
-    train_mode=False
+    train_mode=True
     if train_mode:
         for ep in range(n_epoch):
             print(f"epoch {ep}")
@@ -108,7 +125,15 @@ def main():
 
             pbar = tqdm(dataloader, mininterval=2)
             tr_loss = 0
-            for x, layout in pbar:  # x: images
+            for x, layout,prompt in pbar:  # x: images
+            # Convert into a list of length Seq_Len=77
+                cond_tokens = tokenizer.batch_encode_plus(
+                    prompt, padding="max_length", max_length=77
+                ).input_ids
+                # (Batch_Size, Seq_Len)
+                cond_tokens = torch.tensor(cond_tokens, dtype=torch.long, device=device)
+                # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
+                cond_context = clip(cond_tokens)
                 optim.zero_grad()
                 x = x.to(device)
                 b, c, h, w = x.shape
@@ -123,7 +148,7 @@ def main():
 
                 # use network to recover noise
                 pred_noise = nn_model(
-                    latent=x_pert, layout=layout, context=None, time=t/1.0)
+                    latent=x_pert, layout=layout, context=cond_context, time=t/1.0)
 
                 # loss is mean squared error between the predicted and true noise
                 loss = F.mse_loss(pred_noise, noise)
