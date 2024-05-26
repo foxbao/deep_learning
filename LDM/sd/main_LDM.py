@@ -47,8 +47,8 @@ def main():
         layout_dir=os.path.join(
             home_dir, "Downloads/parking2023/baojiali/park_generate/parking_layout_data"),
         layout_names="data/parking_layout_data/data.txt",
-        text_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/parking_description_data"),
-        text_names="data/parking_description_data/data.txt",
+        text_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/parking_text_data"),
+        text_names="data/parking_text_data/data.txt",
         transform=transform,
         transform_layout=transform_layout,
         null_context=False,
@@ -64,8 +64,8 @@ def main():
         layout_dir=os.path.join(
             home_dir, "Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
         layout_names="data/val_parking_layout_data/data.txt",
-        text_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/val_parking_layout_data"),
-        text_names="data/val_parking_description_data/data.txt",
+        text_dir=os.path.join(home_dir,"Downloads/parking2023/baojiali/park_generate/val_parking_text_data"),
+        text_names="data/val_parking_text_data/data.txt",
         transform=transform,
         transform_layout=transform_layout,
         null_context=False,
