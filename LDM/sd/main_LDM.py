@@ -31,7 +31,7 @@ def main():
     latent_height=int(img_length/8)
     layout_length=latent_height
     batch_size = 8
-    n_epoch = 1000
+    n_epoch = 2000
 
     sampler = DDPMSampler(beta2, beta1, timesteps, device)
 
@@ -109,14 +109,17 @@ def main():
 
     for name, param in decoder_VAE.named_parameters():
         param.requires_grad = False
+    for name, param in clip.named_parameters():
+        param.requires_grad = False
 
     encoder_VAE.eval()
     decoder_VAE.eval()
+    clip.eval()
     nn_model.train()
     optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
     latents = []
-    train_mode=True
+    train_mode=False
     if train_mode:
         for ep in range(n_epoch):
             print(f"epoch {ep}")
@@ -126,15 +129,23 @@ def main():
             pbar = tqdm(dataloader, mininterval=2)
             tr_loss = 0
             for x, layout,prompt in pbar:  # x: images
+                list_width=[]
+                for idx,p in enumerate(prompt):
+                    parts = p.split(':')
+                    width=parts[1]
+                    list_width.append(width)
+                    
             # Convert into a list of length Seq_Len=77
                 cond_tokens = tokenizer.batch_encode_plus(
-                    prompt, padding="max_length", max_length=77
+                    list_width, padding="max_length", max_length=77
                 ).input_ids
                 # (Batch_Size, Seq_Len)
                 cond_tokens = torch.tensor(cond_tokens, dtype=torch.long, device=device)
                 # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
                 with torch.no_grad():
                     cond_context = clip(cond_tokens)
+                    
+                    
                 optim.zero_grad()
                 x = x.to(device)
                 b, c, h, w = x.shape
@@ -168,17 +179,33 @@ def main():
                 torch.save(nn_model.state_dict(), save_dir + f"model_{ep}.pth")
                 print("saved model at " + save_dir + f"model_{ep}.pth")
 
+
     nn_model.load_state_dict(torch.load(
-        f"{save_dir}/model_{n_epoch-1}.pth", map_location=device))
+        f"{save_dir}/model_{190}.pth", map_location=device))
     nn_model.eval()
     print("Loaded in Model")
 
     # load the encoder of VAE
 
-    for idx, (gt, layout) in enumerate(dataloader_val):
+    for idx, (gt, layout,prompt) in enumerate(dataloader_val):
+        list_width=[]
+        for _,p in enumerate(prompt):
+            parts = p.split(':')
+            width=parts[1]
+            list_width.append(width)
+            
+    # Convert into a list of length Seq_Len=77
+        cond_tokens = tokenizer.batch_encode_plus(
+            list_width, padding="max_length", max_length=77
+        ).input_ids
+        # (Batch_Size, Seq_Len)
+        cond_tokens = torch.tensor(cond_tokens, dtype=torch.long, device=device)
+        # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
+        with torch.no_grad():
+            cond_context = clip(cond_tokens)
         gt = gt.to(device)
         layout = layout.to(device)
-        samples, intermediate =sampler.sample_ddpm_context(layout.shape[0], nn_model,latent_in_channels,latent_height,timesteps,layout,device='cuda',save_rate=20)
+        samples, intermediate =sampler.sample_ddpm_context(layout.shape[0], nn_model,latent_in_channels,latent_height,timesteps,layout,cond_context,device='cuda',save_rate=20)
         
         output = decoder_VAE(samples)
         save_layout_sample_gt(

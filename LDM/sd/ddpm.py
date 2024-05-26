@@ -26,7 +26,7 @@ class DDPMSampler:
         return mean + noise
 
     @torch.no_grad()
-    def sample_ddpm_context(self, n_sample, nn_model, in_channels, height, timesteps, layout,LDM=False,device='cuda', save_rate=20):
+    def sample_ddpm_context(self, n_sample, nn_model, in_channels, height, timesteps, layout,context=None,LDM=False,device='cuda', save_rate=20):
         # x_T ~ N(0, 1), sample initial noise
         samples = torch.randn(n_sample, in_channels, height, height).to(device)
         if LDM:
@@ -43,7 +43,7 @@ class DDPMSampler:
             z = torch.randn_like(samples) if i > 1 else 0
 
             # predict noise e_(x_t,t, ctx)
-            eps = nn_model(samples, layout=layout,context=None, time=t)
+            eps = nn_model(samples, layout=layout,context=context, time=t)
             samples = self.denoise_add_noise(samples, i, eps, z)
             if i % save_rate == 0 or i == timesteps or i < 8:
                 intermediate.append(samples.detach().cpu().numpy())
