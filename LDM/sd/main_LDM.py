@@ -133,14 +133,16 @@ def main():
                 # (Batch_Size, Seq_Len)
                 cond_tokens = torch.tensor(cond_tokens, dtype=torch.long, device=device)
                 # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
-                cond_context = clip(cond_tokens)
+                with torch.no_grad():
+                    cond_context = clip(cond_tokens)
                 optim.zero_grad()
                 x = x.to(device)
                 b, c, h, w = x.shape
                 layout = layout.to(device)
                 # 注意，这里给encoder的noise要是0，以便固定encoded的值，否则训练不起来
                 encoder_noise=torch.zeros(size=(b, 4, int(latent_height), int(latent_height)), device=device)
-                latent, mean, log_variance=encoder_VAE(x,encoder_noise)
+                with torch.no_grad():
+                    latent, mean, log_variance=encoder_VAE(x,encoder_noise)
                 # perturb data
                 noise = torch.randn_like(latent)
                 t = torch.randint(1, timesteps + 1, (latent.shape[0],)).to(device)
