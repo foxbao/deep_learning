@@ -30,7 +30,7 @@ def main():
     img_length = 256
     latent_height=int(img_length/8)
     layout_length=latent_height
-    batch_size = 8
+    batch_size = 2
     n_epoch = 2000
 
     sampler = DDPMSampler(beta2, beta1, timesteps, device)
@@ -119,7 +119,7 @@ def main():
     optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
     latents = []
-    train_mode=False
+    train_mode=True
     if train_mode:
         for ep in range(n_epoch):
             print(f"epoch {ep}")

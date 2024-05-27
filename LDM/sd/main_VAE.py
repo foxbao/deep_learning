@@ -31,6 +31,7 @@ def train(device, dataloader, model: VAE,n_epoch=50):
     begin_time = time()
     # train
     for i in range(n_epoch):
+        optimizer.param_groups[0]["lr"] = lr * (1 - i / n_epoch)
         pbar = tqdm(dataloader, mininterval=2)
         tr_loss=0
         for x, layout,prompt in pbar:  # x: images
@@ -86,7 +87,7 @@ def generate(device, model:VAE):
 def main():
     device = 'cuda:0'
     img_length=256
-    batch_size=4
+    batch_size=8
     transform=get_transform(img_length)
     transform_layout=get_transform(int(img_length/8))
     home_dir = os.path.expanduser('~')
