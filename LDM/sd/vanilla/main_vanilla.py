@@ -51,6 +51,7 @@ def train(device, dataloader, model: VanillaVAE,n_epoch=50):
     optimizer = torch.optim.Adam(model.parameters(), lr)
     begin_time = time()
     # train
+    max_beta=10
     for i in range(n_epoch):
         optimizer.param_groups[0]["lr"] = lr * (1 - i / n_epoch)
         pbar = tqdm(dataloader, mininterval=2)
@@ -60,8 +61,8 @@ def train(device, dataloader, model: VanillaVAE,n_epoch=50):
         for x, layout,prompt in pbar:  # x: images
             x = x.to(device)
             results=model(x)
-            
-            train_loss = model.loss_function(*results,M_N=0.00025,beta=40)
+            beta=1+10*(i/n_epoch)
+            train_loss = model.loss_function(*results,M_N=0.00025,beta=beta)
             loss=train_loss['loss']
             recon=train_loss['Reconstruction_Loss']
             kld=train_loss['KLD']
@@ -93,6 +94,8 @@ def main():
     device = 'cuda:0'
     img_length=64
     batch_size=128
+    in_channels=3
+    latent_dim=512
     transform=get_transform(img_length)
     transform_layout=get_transform(int(img_length/8))
     home_dir = os.path.expanduser('~')
@@ -115,7 +118,7 @@ def main():
     
     # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
 
-    model = VanillaVAE(3,128,img_length).to(device)
+    model = VanillaVAE(in_channels,latent_dim,img_length).to(device)
     n_epoch=500
     # model.load_state_dict(torch.load(
     #     f"weights/model_VAE_{330}.pth", map_location=device))

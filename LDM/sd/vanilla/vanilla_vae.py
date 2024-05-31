@@ -22,6 +22,7 @@ class VanillaVAE(BaseVAE):
         if hidden_dims is None:
             hidden_dims = [32, 64, 128, 256, 512]
 
+        self.hidden_dims_nums=len(hidden_dims)
         # Build Encoder
         for h_dim in hidden_dims:
             modules.append(
@@ -45,7 +46,8 @@ class VanillaVAE(BaseVAE):
         # Build Decoder
         modules = []
 
-        self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1] * 4)
+        # self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1] * 4)
+        self.decoder_input = nn.Linear(latent_dim, flatten_dim)
 
         hidden_dims.reverse()
 
@@ -104,7 +106,9 @@ class VanillaVAE(BaseVAE):
         :return: (Tensor) [B x C x H x W]
         """
         result = self.decoder_input(z)
-        result = result.view(-1, 512, 2, 2)
+        
+        last_h=int(self.img_height/2**self.hidden_dims_nums)
+        result = result.view(-1, 512, last_h, last_h)
         result = self.decoder(result)
         result = self.final_layer(result)
         return result
