@@ -69,10 +69,9 @@ class VAE_Encoder(nn.Sequential):
             nn.Conv2d(8, 8, kernel_size=1, padding=0), 
         )
 
-    def forward(self, x, noise):
+    def forward(self, x):
         # x: (Batch_Size, Channel, Height, Width)
         # noise: (Batch_Size, 4, Height / 8, Width / 8)
-
         for module in self:
 
             if getattr(module, 'stride', None) == (2, 2):  # Padding at downsampling should be asymmetric (see #8)
@@ -94,11 +93,14 @@ class VAE_Encoder(nn.Sequential):
         
         # Transform N(0, 1) -> N(mean, stdev) 
         # (Batch_Size, 4, Height / 8, Width / 8) -> (Batch_Size, 4, Height / 8, Width / 8)
+        # noise=torch.randn(size=(b,self.latent_dim,int(self.height/8),int(self.height/8)),device=self.device)
+        noise=torch.zeros_like(stdev)
+        # noise=torch.randn_like(stdev)
         x = mean + stdev * noise
         
         # Scale by a constant
         # Constant taken from: https://github.com/CompVis/stable-diffusion/blob/21f890f9da3cfbeaba8e2ac3c425ee9e998d5229/configs/stable-diffusion/v1-inference.yaml#L17C1-L17C1
-        x *= 0.18215
+        x *=0.18215
         
         return x, mean, log_variance
 

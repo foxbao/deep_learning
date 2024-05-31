@@ -30,7 +30,7 @@ def main():
     img_length = 256
     latent_height=int(img_length/8)
     layout_length=latent_height
-    batch_size = 2
+    batch_size = 8
     n_epoch = 2000
 
     sampler = DDPMSampler(beta2, beta1, timesteps, device)
@@ -51,7 +51,7 @@ def main():
         text_names="data/parking_text_data/data.txt",
         transform=transform,
         transform_layout=transform_layout,
-        null_context=False,
+        use_layout=True,
         text_context=True
     )
     dataloader = DataLoader(dataset, batch_size=batch_size,
@@ -68,7 +68,7 @@ def main():
         text_names="data/val_parking_text_data/data.txt",
         transform=transform,
         transform_layout=transform_layout,
-        null_context=False,
+        use_layout=True,
         text_context=True
     )
 
@@ -79,7 +79,7 @@ def main():
 
     model_VAE = VAE(device, height=img_length).to(device)
     model_VAE.load_state_dict(torch.load(
-        f"{save_dir}/model_VAE_{199}.pth", map_location=device))
+        f"{save_dir}/model_VAE_{250}.pth", map_location=device))
     encoder_VAE = model_VAE.encoder
     decoder_VAE = model_VAE.decoder
 
@@ -104,21 +104,33 @@ def main():
     clip = models["clip"]
     clip.to(device)
 
-    for name, param in encoder_VAE.named_parameters():
+    for param in encoder_VAE.parameters():
         param.requires_grad = False
 
-    for name, param in decoder_VAE.named_parameters():
+    for param in decoder_VAE.parameters():
         param.requires_grad = False
-    for name, param in clip.named_parameters():
+    for param in clip.parameters():
         param.requires_grad = False
 
     encoder_VAE.eval()
     decoder_VAE.eval()
     clip.eval()
+
+    # nn_model.load_state_dict(torch.load(
+    #     f"{save_dir}/model_{1480}.pth", map_location=device))
     nn_model.train()
     optim = torch.optim.Adam(nn_model.parameters(), lr=lrate)
 
-    latents = []
+    # num_batches = len(dataloader)
+    # total_data_size=len(dataloader.dataset)
+    # encoder_noise_list=[]
+    # for idx_batch in range(num_batches):
+    #     if idx_batch != num_batches-1:
+    #         encoder_noise=torch.randn(size=(int(batch_size), 4, int(latent_height), int(latent_height)), device=device)
+    #     else:
+    #         encoder_noise=torch.randn(size=(int(total_data_size-(num_batches-1)*batch_size), 4, int(latent_height), int(latent_height)), device=device)
+    #     encoder_noise_list.append(encoder_noise)
+
     train_mode=True
     if train_mode:
         for ep in range(n_epoch):
@@ -128,7 +140,7 @@ def main():
 
             pbar = tqdm(dataloader, mininterval=2)
             tr_loss = 0
-            for x, layout,prompt in pbar:  # x: images
+            for batch_idx,(x, layout,prompt) in enumerate(pbar):  # x: images
                 list_width=[]
                 for idx,p in enumerate(prompt):
                     parts = p.split(':')
@@ -143,15 +155,17 @@ def main():
                 cond_tokens = torch.tensor(cond_tokens, dtype=torch.long, device=device)
                 # (Batch_Size, Seq_Len) -> (Batch_Size, Seq_Len, Dim)
                 with torch.no_grad():
-                    cond_context = clip(cond_tokens)
+                    cond_context = None
+                    # cond_context=clip(cond_tokens)
                     
                     
                 optim.zero_grad()
                 x = x.to(device)
-                b, c, h, w = x.shape
                 layout = layout.to(device)
                 # 注意，这里给encoder的noise要是0，以便固定encoded的值，否则训练不起来
-                encoder_noise=torch.zeros(size=(b, 4, int(latent_height), int(latent_height)), device=device)
+                # encoder_noise=torch.zeros(size=(x.shape[0], 4, int(latent_height), int(latent_height)), device=device)
+                # encoder_noise=encoder_noise_list[batch_idx]
+                encoder_noise=torch.randn(size=(x.shape[0], 4, int(latent_height), int(latent_height)), device=device)
                 with torch.no_grad():
                     latent, mean, log_variance=encoder_VAE(x,encoder_noise)
                 # perturb data
@@ -181,7 +195,7 @@ def main():
 
 
     nn_model.load_state_dict(torch.load(
-        f"{save_dir}/model_{190}.pth", map_location=device))
+        f"{save_dir}/model_{1480}.pth", map_location=device))
     nn_model.eval()
     print("Loaded in Model")
 

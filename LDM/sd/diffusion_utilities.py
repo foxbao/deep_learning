@@ -482,9 +482,9 @@ class CustomDatasetVal(Dataset):
         return self.sprites_shape, self.slabel_shape
 
 class CustomDataset3(Dataset):
-    def __init__(self,img_dir,img_names,layout_dir,layout_names,text_dir,text_names,transform,transform_layout,null_context=False,text_context=False) -> None:
+    def __init__(self,img_dir,img_names,layout_dir,layout_names,text_dir,text_names,transform,transform_layout,use_layout=False,text_context=False) -> None:
         super().__init__()
-        self.null_context = null_context
+        self.use_layout = use_layout
         self.text_context=text_context
         self.img_dir =img_dir 
         df = pd.read_csv(img_names, header=None,delimiter='\t', names=["Filename"])
@@ -511,10 +511,10 @@ class CustomDataset3(Dataset):
         if self.transform:
             image = self.transform(Image.open(os.path.join(self.img_dir, self.img_names[idx])))
             # plt.imshow(image)
-        if self.null_context:
-            layout=torch.tensor(0).to(torch.int64)
-        else:
+        if self.use_layout:
             layout = self.transform_layout(Image.open(os.path.join(self.layout_dir, self.layout_names[idx])))
+        else:
+            layout=torch.tensor(0).to(torch.int64)
         
         if self.text_context:
             with open(os.path.join(self.text_dir, self.text_names[idx]), "r", encoding="utf-8") as file:

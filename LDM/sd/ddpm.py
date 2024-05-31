@@ -30,7 +30,7 @@ class DDPMSampler:
         # x_T ~ N(0, 1), sample initial noise
         samples = torch.randn(n_sample, in_channels, height, height).to(device)
         if LDM:
-            samples*=0.18215
+            samples*=0.18215*0.1
         # array to keep track of generated steps for plotting
         intermediate = []
         for i in range(timesteps, 0, -1):

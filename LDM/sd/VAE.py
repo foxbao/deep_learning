@@ -15,8 +15,8 @@ class VAE(nn.Module):
     def forward(self,x:torch.tensor):
         b,c,h,w=x.shape
         # VAE compress the input (b,c,h,w)->(b,4,h/8,w/8) latent
-        encoder_noise = torch.randn(size=(b,self.latent_dim,int(self.height/8),int(self.height/8)),device=self.device)
-        encoded, mean, log_variance = self.encoder(x,encoder_noise)
+        # encoder_noise = torch.randn(size=(b,self.latent_dim,int(self.height/8),int(self.height/8)),device=self.device)
+        encoded, mean, log_variance = self.encoder(x)
         
         decoded=self.decoder(encoded)
         return decoded,mean, log_variance
@@ -26,7 +26,7 @@ class VAE(nn.Module):
         # x = self.decoder_projection(z)
         # x = torch.reshape(x, (-1, *self.decoder_input_chw))
         z=torch.randn(1,self.latent_dim,int(self.height/8),int(self.height/8)).to(device)
-        z*= 0.18215
+        z*= 0.18215*0.1
         decoded = self.decoder(z)
         return decoded
         
