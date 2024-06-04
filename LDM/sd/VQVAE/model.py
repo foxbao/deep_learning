@@ -19,15 +19,26 @@ class ResidualBlock(nn.Module):
 
 class VQVAE(nn.Module):
 
-    def __init__(self, input_dim, dim, n_embedding):
+    def __init__(self, input_dim, dim, n_embedding,z_channels=3):
         super().__init__()
+        self.z_channels = z_channels
         self.encoder = nn.Sequential(nn.Conv2d(input_dim, dim, 4, 2, 1),
                                      nn.ReLU(), nn.Conv2d(dim, dim, 4, 2, 1),
                                      nn.ReLU(), nn.Conv2d(dim, dim, 3, 1, 1),
                                      ResidualBlock(dim), ResidualBlock(dim))
-        self.vq_embedding = nn.Embedding(n_embedding, dim)
+        self.encoder_conv_out = nn.Conv2d(dim, self.z_channels, kernel_size=3, padding=1)
+        # Pre Quantization Convolution
+        self.pre_quant_conv = nn.Conv2d(self.z_channels, self.z_channels, kernel_size=1)
+        
+        self.vq_embedding = nn.Embedding(n_embedding, self.z_channels)
+        # self.vq_embedding = nn.Embedding(n_embedding, dim)
         self.vq_embedding.weight.data.uniform_(-1.0 / n_embedding,
                                                1.0 / n_embedding)
+        
+        # Post Quantization Convolution
+        self.post_quant_conv = nn.Conv2d(self.z_channels, self.z_channels, kernel_size=1)
+        self.decoder_conv_in = nn.Conv2d(self.z_channels, dim, kernel_size=3, padding=(1, 1))
+        
         self.decoder = nn.Sequential(
             nn.Conv2d(dim, dim, 3, 1, 1),
             ResidualBlock(dim), ResidualBlock(dim),
@@ -38,6 +49,9 @@ class VQVAE(nn.Module):
     def forward(self, x):
         # encode
         ze = self.encoder(x)
+        
+        ze=self.encoder_conv_out(ze)
+        ze=self.pre_quant_conv(ze)
 
         # ze: [N, C, H, W]
         # embedding [K, C]
@@ -53,13 +67,19 @@ class VQVAE(nn.Module):
         # stop gradient
         decoder_input = ze + (zq - ze).detach()
 
+
         # decode
+        decoder_input = self.post_quant_conv(decoder_input)
+        decoder_input = self.decoder_conv_in(decoder_input)
         x_hat = self.decoder(decoder_input)
         return x_hat, ze, zq
 
     @torch.no_grad()
     def encode(self, x):
         ze = self.encoder(x)
+        ze=self.encoder_conv_out(ze)
+        ze=self.pre_quant_conv(ze)
+
         embedding = self.vq_embedding.weight.data
 
         # ze: [N, C, H, W]

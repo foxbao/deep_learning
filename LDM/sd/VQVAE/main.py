@@ -177,16 +177,16 @@ if __name__ == '__main__':
     #                                   cfg['pixelcnn_linear_dim'], True,
     #                                   cfg['n_embedding'])
     # 1. Train VQVAE
-    # train_vqvae(vqvae,
-    #             img_shape=(img_shape[1], img_shape[2]),
-    #             device=device,
-    #             ckpt_path=cfg['vqvae_path'],
-    #             batch_size=cfg['batch_size'],
-    #             dataset_type=cfg['dataset_type'],
-    #             lr=cfg['lr'],
-    #             n_epochs=cfg['n_epochs'],
-    #             l_w_embedding=cfg['l_w_embedding'],
-    #             l_w_commitment=cfg['l_w_commitment'])
+    train_vqvae(vqvae,
+                img_shape=(img_shape[1], img_shape[2]),
+                device=device,
+                ckpt_path=cfg['vqvae_path'],
+                batch_size=cfg['batch_size'],
+                dataset_type=cfg['dataset_type'],
+                lr=cfg['lr'],
+                n_epochs=cfg['n_epochs'],
+                l_w_embedding=cfg['l_w_embedding'],
+                l_w_commitment=cfg['l_w_commitment'])
 
     # 2. Test VQVAE by visualizaing reconstruction result
     vqvae.load_state_dict(torch.load(cfg['vqvae_path']))

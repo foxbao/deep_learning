@@ -14,7 +14,9 @@ CELEBA_DIR = 'data/celebA/img_align_celeba'
 CELEBA_LMDB_PATH = 'data/celebA/img_align_celeba.lmdb'
 CELEBA_HQ_DIR = 'data/celebA/celeba_hq_256'
 CELEBA_HQ_LMDB_PATH = 'data/celebA/celeba_hq_256.lmdb'
-PARK_DIR='data/parking_generate_data'
+# PARK_DIR='data/parking_generate_data'
+home_dir = os.path.expanduser('~')
+PARK_DIR=os.path.join(home_dir, "/Downloads/parking2023/baojiali/park_generate/parking_generate_data")
 
 
 def download_mnist():
