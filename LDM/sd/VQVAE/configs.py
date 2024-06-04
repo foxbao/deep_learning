@@ -97,8 +97,8 @@ park_cfg1 = dict(dataset_type='Park',
                      pixelcnn_n_blocks=15,
                      pixelcnn_dim=384,
                      pixelcnn_linear_dim=256,
-                     vqvae_path='VQVAE/model_Park.pth',
-                     gen_model_path='VQVAE/gen_Park.pth')
+                     vqvae_path='weights/model_Park.pth',
+                     gen_model_path='weights/gen_Park.pth')
 
 cfgs = [mnist_cfg1, celebahq_cfg1, celebahq_cfg2, celebahq_cfg3, celebahq_cfg4,park_cfg1]
 
