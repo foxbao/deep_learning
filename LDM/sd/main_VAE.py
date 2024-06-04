@@ -13,15 +13,16 @@ import os
 from diffusion_utilities import CustomDataset3,get_transform
 from torch.utils.data import DataLoader
 
-def loss_fn(y, y_hat, mean, logvar):
+def loss_fn(y, y_hat, mean, logvar,beta=1):
     kl_weight = 0.00025
     # print(mean.shape)
     # print(logvar.shape)
     recons_loss = F.mse_loss(y_hat, y)
     kl_loss = torch.mean(
         -0.5 * torch.sum(1 + logvar - mean**2 - torch.exp(logvar), (1,2,3)), 0)
-    loss = recons_loss + kl_loss * kl_weight
-    return loss
+    loss = recons_loss + kl_loss * kl_weight*beta
+    
+    return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':kl_loss.detach()}
 
 def train(device, dataloader, model: VAE,n_epoch=50):
     writer = SummaryWriter('runs')
@@ -34,21 +35,39 @@ def train(device, dataloader, model: VAE,n_epoch=50):
         optimizer.param_groups[0]["lr"] = lr * (1 - i / n_epoch)
         pbar = tqdm(dataloader, mininterval=2)
         tr_loss=0
+        recons_loss=0
+        kld_loss=0
+        beta_max=40
         for x, layout,prompt in pbar:  # x: images
             x = x.to(device)
             y_hat, mean, logvar = model(x)
-            loss = loss_fn(x, y_hat, mean, logvar)
+            beta=1+beta_max*(i/n_epoch)
+            train_loss = loss_fn(x, y_hat, mean, logvar,beta)
+            loss=train_loss['loss']
+            recon=train_loss['Reconstruction_Loss']
+            kld=train_loss['KLD']
+            
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             tr_loss += loss.item()
+            kld_loss += kld.item()
+            recons_loss += recon.item()
+            
         epoch_loss = tr_loss / len(dataloader)
-        writer.add_scalar("Loss/train", epoch_loss, i)
+        kld_loss = kld_loss / len(dataloader)
+        recons_loss = recons_loss / len(dataloader)
+        
+        writer.add_scalar("train/epoch_loss", epoch_loss, i)
+        writer.add_scalar("train/kld_loss", kld_loss, i)
+        writer.add_scalar("train/recons_loss", recons_loss, i)
+        
         print("loss:", loss.item())
         training_time = time() - begin_time
         minute = int(training_time // 60)
         second = int(training_time % 60)
-        print(f'epoch {i}: loss {epoch_loss} {minute}:{second}')
+        print(f'epoch {i}: loss {epoch_loss} kl_loss {kld_loss} recon_loss {recons_loss} time {minute}:{second}')
+        
         if i % 10 == 0 or i == int(n_epoch - 1):
             torch.save(model.state_dict(), f"weights/model_VAE_{i}.pth")
             print("saved model at " + f"weights/model_VAE_{i}.pth")

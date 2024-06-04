@@ -10,7 +10,7 @@ from utils import *
 from tqdm import tqdm
 from utils import *
 # Hyperparameters
-n_epochs = 10
+n_epochs = 50
 kl_weight = 0.00025
 lr = 0.005
 
@@ -22,6 +22,7 @@ def loss_fn(y, y_hat, mean, logvar):
     kl_loss = torch.mean(
         -0.5 * torch.sum(1 + logvar - mean**2 - torch.exp(logvar), 1), 0)
     loss = recons_loss + kl_loss * kl_weight
+    return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':kl_loss.detach()}
     return loss
 
 
@@ -34,22 +35,37 @@ def train(device, dataloader, model):
     for i in range(n_epochs):
         loss_sum = 0
         pbar = tqdm(dataloader, mininterval=2)
-
+        tr_loss=0
+        recons_loss=0
+        kld_loss=0
         for x in pbar:  # x: images
             x = x.to(device)
             y_hat, mean, logvar = model(x)
-            loss = loss_fn(x, y_hat, mean, logvar)
+            train_loss = loss_fn(x, y_hat, mean, logvar)
+            loss=train_loss['loss']
+            recon=train_loss['Reconstruction_Loss']
+            kld=train_loss['KLD']
+            # loss = loss_fn(x, y_hat, mean, logvar)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            loss_sum += loss
-        loss_sum /= dataset_len
-        writer.add_scalar("Loss/train", loss_sum.item(), i)
+            tr_loss += loss.item()
+            kld_loss += kld.item()
+            recons_loss += recon.item()
+            
+        epoch_loss = tr_loss / len(dataloader)
+        kld_loss = kld_loss / len(dataloader)
+        recons_loss = recons_loss / len(dataloader)
+        
+        writer.add_scalar("train/epoch_loss", epoch_loss, i)
+        writer.add_scalar("train/kld_loss", kld_loss, i)
+        writer.add_scalar("train/recons_loss", recons_loss, i)
+        
         training_time = time() - begin_time
         minute = int(training_time // 60)
         second = int(training_time % 60)
-        print(f'epoch {i}: loss {loss_sum} {minute}:{second}')
-        torch.save(model.state_dict(), 'model.pth')
+        print(f'epoch {i}: loss {epoch_loss} kl_loss {kld_loss} recon_loss {recons_loss} time {minute}:{second}')
+        torch.save(model.state_dict(), f"model_VAE_{i}.pth")
 
 
 def reconstruct(device, dataloader, model):

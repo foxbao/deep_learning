@@ -51,17 +51,17 @@ def train(device, dataloader, model: VanillaVAE,n_epoch=50):
     optimizer = torch.optim.Adam(model.parameters(), lr)
     begin_time = time()
     # train
-    max_beta=10
     for i in range(n_epoch):
         optimizer.param_groups[0]["lr"] = lr * (1 - i / n_epoch)
         pbar = tqdm(dataloader, mininterval=2)
         tr_loss=0
         recons_loss=0
         kld_loss=0
+        beta_max=40
         for x, layout,prompt in pbar:  # x: images
             x = x.to(device)
             results=model(x)
-            beta=1+10*(i/n_epoch)
+            beta=1+beta_max*(i/n_epoch)
             train_loss = model.loss_function(*results,M_N=0.00025,beta=beta)
             loss=train_loss['loss']
             recon=train_loss['Reconstruction_Loss']
@@ -84,8 +84,7 @@ def train(device, dataloader, model: VanillaVAE,n_epoch=50):
         minute = int(training_time // 60)
         second = int(training_time % 60)
         print(f'epoch {i}: loss {epoch_loss} kl_loss {kld_loss} recon_loss {recons_loss} time {minute}:{second}')
-        if i % 10 == 0 or i == int(n_epoch - 1):
-            torch.save(model.state_dict(), f"weights/model_VAE_{i}.pth")
+
         if i % 10 == 0 or i == int(n_epoch - 1):
             torch.save(model.state_dict(), f"weights/model_VAE_{i}.pth")
             print("saved model at " + f"weights/model_VAE_{i}.pth")
@@ -119,9 +118,9 @@ def main():
     # dataloader = get_dataloader(root=os.path.join(current_work_dir,current_work_dir,'../data/parking_generate_data'),batch_size=batch_size,img_shape=(img_length,img_length))
 
     model = VanillaVAE(in_channels,latent_dim,img_length).to(device)
-    n_epoch=500
-    # model.load_state_dict(torch.load(
-    #     f"weights/model_VAE_{330}.pth", map_location=device))
+    n_epoch=4000
+    model.load_state_dict(torch.load(
+        f"weights/model_VAE_{999}.pth", map_location=device))
     train(device, dataloader, model,n_epoch)
     model.load_state_dict(torch.load(
         f"weights/model_VAE_{n_epoch-1}.pth", map_location=device))
