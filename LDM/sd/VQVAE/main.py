@@ -109,53 +109,15 @@ def reconstruct(model, x, device, dataset_type='MNIST'):
     model.eval()
     with torch.no_grad():
         x_hat, _, _ = model(x)
+    
     n = x.shape[0]
     n1 = int(n**0.5)
     x_cat = torch.concat((x, x_hat), 3)
     x_cat = einops.rearrange(x_cat, '(n1 n2) c h w -> (n1 h) (n2 w) c', n1=n1)
-    x_cat = (x_cat.clip(0, 1) * 255).cpu().numpy().astype(np.uint8)
+    x_cat = ((x_cat.clip(-1, 1)+1)/2 * 255).cpu().numpy().astype(np.uint8)
     if dataset_type == 'CelebA' or dataset_type == 'CelebAHQ' or dataset_type == 'Park':
         x_cat = cv2.cvtColor(x_cat, cv2.COLOR_RGB2BGR)
     cv2.imwrite(f'work_dirs/vqvae_reconstruct_{dataset_type}.jpg', x_cat)
-
-
-def sample_imgs(vqvae: VQVAE,
-                gen_model,
-                img_shape,
-                n_sample=81,
-                device='cuda',
-                dataset_type='MNIST'):
-    vqvae = vqvae.to(device)
-    vqvae.eval()
-    gen_model = gen_model.to(device)
-    gen_model.eval()
-
-    C, H, W = img_shape
-    H, W = vqvae.get_latent_HW((C, H, W))
-    input_shape = (n_sample, H, W)
-    x = torch.zeros(input_shape).to(device).to(torch.long)
-    with torch.no_grad():
-        for i in range(H):
-            for j in range(W):
-                output = gen_model(x)
-                prob_dist = F.softmax(output[:, :, i, j], -1)
-                pixel = torch.multinomial(prob_dist, 1)
-                x[:, i, j] = pixel[:, 0]
-
-    imgs = vqvae.decode(x)
-
-    imgs = imgs * 255
-    imgs = imgs.clip(0, 255)
-    imgs = einops.rearrange(imgs,
-                            '(n1 n2) c h w -> (n1 h) (n2 w) c',
-                            n1=int(n_sample**0.5))
-
-    imgs = imgs.detach().cpu().numpy().astype(np.uint8)
-    if dataset_type == 'CelebA' or dataset_type == 'CelebAHQ':
-        imgs = cv2.cvtColor(imgs, cv2.COLOR_RGB2BGR)
-
-    cv2.imwrite(f'work_dirs/vqvae_sample_{dataset_type}.jpg', imgs)
-
 
 if __name__ == '__main__':
 

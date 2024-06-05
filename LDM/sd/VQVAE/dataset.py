@@ -75,7 +75,8 @@ class ParkDataset(Dataset):
         pipeline = transforms.Compose([
             # transforms.CenterCrop(168),
             transforms.Resize(self.img_shape),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
         ])
         return pipeline(img)
 
@@ -108,8 +109,7 @@ class MNISTImageDataset(Dataset):
         img = self.mnist[index][0]
         pipeline = transforms.Compose(
             [transforms.Resize(self.img_shape),
-             transforms.ToTensor(),
-             transforms.Normalize((0.5,), (0.5,))])
+             transforms.ToTensor()])
         return pipeline(img)
 
 

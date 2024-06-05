@@ -50,6 +50,7 @@ def train_generative_model(vqvae: VQVAE, model: Diffusion, dataset, device, ckpt
         pbar = tqdm(dataloader, mininterval=2)
         tr_loss = 0
         for batch_idx, (x, layout, prompt) in enumerate(pbar):  # x: images
+            current_batch_size = x.shape[0]
             list_width = []
             for idx, p in enumerate(prompt):
                 parts = p.split(':')
@@ -83,10 +84,10 @@ def train_generative_model(vqvae: VQVAE, model: Diffusion, dataset, device, ckpt
 
             # loss is mean squared error between the predicted and true noise
             loss = F.mse_loss(pred_noise, noise)
-            tr_loss += loss.item()
+            tr_loss += loss.item()* current_batch_size
             loss.backward()
             optim.step()
-        epoch_loss = tr_loss / len(dataloader)
+        epoch_loss = tr_loss / len(dataloader.dataset)
         writer.add_scalar("Loss/train", epoch_loss, ep)
         print("loss:", loss.item())
         print("epoch_loss:", epoch_loss)
@@ -99,7 +100,6 @@ def train_generative_model(vqvae: VQVAE, model: Diffusion, dataset, device, ckpt
 
 
 def sample_images(vqvae: VQVAE, model: Diffusion, device, latent_height, val_dataset):
-
     timesteps = 500
     beta1 = 1e-4
     beta2 = 0.02
@@ -186,7 +186,7 @@ def main():
         text_context=True
     )
 
-    vqvae = VQVAE(img_shape[0], cfg['dim'], cfg['n_embedding'])
+    vqvae = VQVAE(img_shape[0], cfg['dim'], cfg['n_embedding'],cfg['z_channels'])
     vqvae.load_state_dict(torch.load(cfg['vqvae_path']))
 
     latent_in_channels = cfg['z_channels']
