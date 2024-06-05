@@ -431,9 +431,9 @@ def save_layout_sample_gt(layouts,samples,gts,denormalize=True,name="result.jpg"
             sample=(samples[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
             gt=(gts[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() + 1) / 2
         else:
-            layout=(layouts[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy()) 
-            sample=(samples[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy() ) 
-            gt=(gts[j].permute(1, 2, 0).clip(-1, 1).detach().cpu().numpy()) 
+            layout=(layouts[j].permute(1, 2, 0).clip(0, 1).detach().cpu().numpy()) 
+            sample=(samples[j].permute(1, 2, 0).clip(0, 1).detach().cpu().numpy() ) 
+            gt=(gts[j].permute(1, 2, 0).clip(0, 1).detach().cpu().numpy()) 
         
         
         for idx in range(3):

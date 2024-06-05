@@ -23,11 +23,13 @@ class ParkFullDataset(Dataset):
         self.text_names=df3["Filename"].values
         self.img_transform=transforms.Compose([
             transforms.Resize(img_shape),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
         ])
         self.transform_layout=transforms.Compose([
             transforms.Resize(layout_shape),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
         ])
         
     # Return the number of images in the dataset

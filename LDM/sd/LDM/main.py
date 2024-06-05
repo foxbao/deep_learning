@@ -140,7 +140,7 @@ def sample_images(vqvae: VQVAE, model: Diffusion, device, latent_height, val_dat
 
         # output = decoder_VAE(samples)
         save_layout_sample_gt(
-            layouts=layout, samples=output, gts=gt, denormalize=False,name=str(
+            layouts=layout, samples=output, gts=gt, denormalize=True,name="work_dirs/"+str(
                 idx) + "_triple.jpg"
         )
 

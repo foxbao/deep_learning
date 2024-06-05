@@ -108,7 +108,8 @@ class MNISTImageDataset(Dataset):
         img = self.mnist[index][0]
         pipeline = transforms.Compose(
             [transforms.Resize(self.img_shape),
-             transforms.ToTensor()])
+             transforms.ToTensor(),
+             transforms.Normalize((0.5,), (0.5,))])
         return pipeline(img)
 
 
