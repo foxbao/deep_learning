@@ -92,10 +92,10 @@ def train_generative_model(vqvae: VQVAE, model: Diffusion, dataset, device, ckpt
         print("epoch_loss:", epoch_loss)
         # save model periodically
         if ep % 10 == 0 or ep == int(n_epoch - 1):
-            if not os.path.exists(save_dir):
-                os.mkdir(save_dir)
-            torch.save(model.state_dict(), save_dir + f"model_{ep}.pth")
-            print("saved model at " + save_dir + f"model_{ep}.pth")
+            # if not os.path.exists(save_dir):
+            #     os.mkdir(save_dir)
+            torch.save(model.state_dict(), ckpt_path)
+            print("saved model at " + ckpt_path)
 
 
 def sample_images(vqvae: VQVAE, model: Diffusion, device, latent_height, val_dataset):
@@ -140,7 +140,7 @@ def sample_images(vqvae: VQVAE, model: Diffusion, device, latent_height, val_dat
 
         # output = decoder_VAE(samples)
         save_layout_sample_gt(
-            layouts=layout, samples=output, gts=gt, name=str(
+            layouts=layout, samples=output, gts=gt, denormalize=False,name=str(
                 idx) + "_triple.jpg"
         )
 
@@ -197,8 +197,8 @@ def main():
                          n_cfeat, latent_height).to(device)
 
     # 3. Train Generative model
-    train_generative_model(vqvae, nn_model, dataset,
-                           device, ckpt_path=cfg['gen_model_path'])
+    # train_generative_model(vqvae, nn_model, dataset,
+    #                        device, ckpt_path=cfg['gen_model_path'])
     # 4. Sample VQVAE
     vqvae.load_state_dict(torch.load(cfg['vqvae_path']))
     nn_model.load_state_dict(torch.load(cfg['gen_model_path']))

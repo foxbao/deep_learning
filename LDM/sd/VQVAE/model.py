@@ -96,7 +96,9 @@ class VQVAE(nn.Module):
     @torch.no_grad()
     def decode(self, zq):
         # zq = self.vq_embedding(discrete_latent).permute(0, 3, 1, 2)
-        x_hat = self.decoder(zq)
+        decoder_input = self.post_quant_conv(zq)
+        decoder_input = self.decoder_conv_in(decoder_input)
+        x_hat = self.decoder(decoder_input)
         return x_hat
 
     # Shape: [C, H, W]
