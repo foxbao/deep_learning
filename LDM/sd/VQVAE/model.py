@@ -22,9 +22,14 @@ class VQVAE(nn.Module):
     def __init__(self, input_dim, dim, n_embedding,z_channels=3):
         super().__init__()
         self.z_channels = z_channels
+        # self.encoder = nn.Sequential(nn.Conv2d(input_dim, dim, 4, 2, 1),
+        #                              nn.ReLU(), nn.Conv2d(dim, dim, 4, 2, 1),
+        #                              nn.ReLU(), nn.Conv2d(dim, dim, 3, 1, 1),
+        #                              ResidualBlock(dim), ResidualBlock(dim))
         self.encoder = nn.Sequential(nn.Conv2d(input_dim, dim, 4, 2, 1),
                                      nn.ReLU(), nn.Conv2d(dim, dim, 4, 2, 1),
-                                     nn.ReLU(), nn.Conv2d(dim, dim, 3, 1, 1),
+                                     nn.ReLU(), nn.Conv2d(dim, dim, 4, 2, 1),
+                                     nn.ReLU(),nn.Conv2d(dim, dim, 3, 1, 1),
                                      ResidualBlock(dim), ResidualBlock(dim))
         self.encoder_conv_out = nn.Conv2d(dim, self.z_channels, kernel_size=3, padding=1)
         # Pre Quantization Convolution
@@ -38,13 +43,20 @@ class VQVAE(nn.Module):
         # Post Quantization Convolution
         self.post_quant_conv = nn.Conv2d(self.z_channels, self.z_channels, kernel_size=1)
         self.decoder_conv_in = nn.Conv2d(self.z_channels, dim, kernel_size=3, padding=(1, 1))
-        
+
         self.decoder = nn.Sequential(
             nn.Conv2d(dim, dim, 3, 1, 1),
             ResidualBlock(dim), ResidualBlock(dim),
             nn.ConvTranspose2d(dim, dim, 4, 2, 1), nn.ReLU(),
-            nn.ConvTranspose2d(dim, input_dim, 4, 2, 1))
-        self.n_downsample = 2
+            nn.ConvTranspose2d(dim, dim, 4, 2, 1), nn.ReLU(),
+            nn.ConvTranspose2d(dim, input_dim, 4, 2, 1))        
+        # self.decoder = nn.Sequential(
+        #     nn.Conv2d(dim, dim, 3, 1, 1),
+        #     ResidualBlock(dim), ResidualBlock(dim),
+        #     nn.ConvTranspose2d(dim, dim, 4, 2, 1), nn.ReLU(),
+        #     nn.ConvTranspose2d(dim, input_dim, 4, 2, 1))
+        # self.n_downsample = 2
+        self.n_downsample = 3
 
     def forward(self, x):
         # encode

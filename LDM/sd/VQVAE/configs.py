@@ -84,7 +84,7 @@ celebahq_cfg4 = dict(dataset_type='CelebAHQ',
                      gen_model_path='dldemos/VQVAE/gen_model_celebahq_4.pth')
 
 park_cfg1 = dict(dataset_type='Park',
-                     img_shape=(3, 128, 128),
+                     img_shape=(3, 256, 256),
                      dim=128,
                      n_embedding=128,
                      z_channels=4,
