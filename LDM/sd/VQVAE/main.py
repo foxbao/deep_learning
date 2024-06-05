@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     img_shape = cfg['img_shape']
 
-    vqvae = VQVAE(img_shape[0], cfg['dim'], cfg['n_embedding'])
+    vqvae = VQVAE(img_shape[0], cfg['dim'], cfg['n_embedding'],cfg['z_channels'])
 
     # 1. Train VQVAE
     train_vqvae(vqvae,

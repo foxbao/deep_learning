@@ -189,7 +189,7 @@ def main():
     vqvae = VQVAE(img_shape[0], cfg['dim'], cfg['n_embedding'])
     vqvae.load_state_dict(torch.load(cfg['vqvae_path']))
 
-    latent_in_channels = 3
+    latent_in_channels = cfg['z_channels']
     layout_in_channels = 3
     n_feat = 64  # 64 hidden dimension feature
     n_cfeat = 5  # context vector is of size 5
