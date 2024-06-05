@@ -29,8 +29,8 @@ class DDPMSampler:
     def sample_ddpm_context(self, n_sample, nn_model, in_channels, height, timesteps, layout,context=None,LDM=False,device='cuda', save_rate=20):
         # x_T ~ N(0, 1), sample initial noise
         samples = torch.randn(n_sample, in_channels, height, height).to(device)
-        if LDM:
-            samples*=0.18215*0.1
+        # if LDM:
+        #     samples*=0.18215*0.1
         # array to keep track of generated steps for plotting
         intermediate = []
         for i in range(timesteps, 0, -1):

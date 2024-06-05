@@ -172,10 +172,7 @@ if __name__ == '__main__':
     img_shape = cfg['img_shape']
 
     vqvae = VQVAE(img_shape[0], cfg['dim'], cfg['n_embedding'])
-    # gen_model = PixelCNNWithEmbedding(cfg['pixelcnn_n_blocks'],
-    #                                   cfg['pixelcnn_dim'],
-    #                                   cfg['pixelcnn_linear_dim'], True,
-    #                                   cfg['n_embedding'])
+
     # 1. Train VQVAE
     train_vqvae(vqvae,
                 img_shape=(img_shape[1], img_shape[2]),
@@ -195,24 +192,3 @@ if __name__ == '__main__':
                                 img_shape=(img_shape[1], img_shape[2]))
     img = next(iter(dataloader)).to(device)
     reconstruct(vqvae, img, device, cfg['dataset_type'])
-
-    # 3. Train Generative model (Gated PixelCNN in our project)
-    vqvae.load_state_dict(torch.load(cfg['vqvae_path']))
-
-    # train_generative_model(vqvae,
-    #                        gen_model,
-    #                        img_shape=(img_shape[1], img_shape[2]),
-    #                        device=device,
-    #                        ckpt_path=cfg['gen_model_path'],
-    #                        dataset_type=cfg['dataset_type'],
-    #                        batch_size=cfg['batch_size_2'],
-    #                        n_epochs=cfg['n_epochs_2'])
-
-    # # 4. Sample VQVAE
-    # vqvae.load_state_dict(torch.load(cfg['vqvae_path']))
-    # gen_model.load_state_dict(torch.load(cfg['gen_model_path']))
-    # sample_imgs(vqvae,
-    #             gen_model,
-    #             cfg['img_shape'],
-    #             device=device,
-    #             dataset_type=cfg['dataset_type'])
